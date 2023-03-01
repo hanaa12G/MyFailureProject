@@ -1,2 +1,5 @@
 add_executable (${PROJECT_NAME} main.cc)
 
+SET (LIBS D2D1)
+target_link_libraries(${PROJECT_NAME} ${LIBS})
+

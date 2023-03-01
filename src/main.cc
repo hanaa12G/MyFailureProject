@@ -4,14 +4,15 @@
 #include <d2d1.h>
 #include <exception>
 #include <stdexcept>
+#include <string>
+#include <format>
 
-template<typename T>
-concept WindowInterface = requires (T t)
+template<typename Interface>
+void SafeRelease(Interface** i)
 {
-  t.HandleMessage(HWND ,UINT ,WPARAM, LPARAM);
-};
-
-
+  (*i)->Release();
+  (*i) = 0;
+}
 
 template<typename ChildWindow>
 struct Window
@@ -23,6 +24,7 @@ struct Window
     {
       LPCREATESTRUCT s = (LPCREATESTRUCT) lparam;
       w = (ChildWindow*) s->lpCreateParams;
+      w->m_hwnd = hwnd;
       SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)(w));
     }
     else
@@ -37,24 +39,22 @@ struct Window
 
   }
 
-  template<typename Interface>
-  void SafeRelease(Interface** i)
-  {
-    (*i)->Release();
-    (*i) = 0;
-  }
 };
 
 class MainWindow
 {
-private:
-  HWND m_hwnd;
-  ID2D1Factory* m_direct2d_factory;
-  ID2D1HwndRenderTarget* m_render_target; 
-
-  ID2D1SolidColorBrush* m_defautl_color_brush;
 public:
-  MainWindow()
+  HWND m_hwnd = NULL;
+  ID2D1Factory* m_direct2d_factory = NULL;
+  ID2D1HwndRenderTarget* m_render_target = NULL; 
+
+  ID2D1SolidColorBrush* m_defautl_color_brush = NULL;
+public:
+  MainWindow(MainWindow const&) = delete;
+  MainWindow(MainWindow&&) = default;
+  MainWindow() = default;
+
+  static void Register()
   {
     WNDCLASSW wclass = {};
     wclass.lpfnWndProc = Window<MainWindow>::WindowProc;
@@ -68,7 +68,11 @@ public:
       printf("%d\n", err);
       throw std::runtime_error("Can't register window class");
     }
+  }
 
+  static MainWindow Instance()
+  {
+    MainWindow w;
     HWND hwnd = CreateWindowExW(
       0,
       L"MyFailureProject",
@@ -79,24 +83,49 @@ public:
       0,
       0,
       GetModuleHandle(NULL),
-      this);
-
+      &w);
+     
     if (!hwnd)
       throw std::runtime_error("Can't create window");
-    m_hwnd = hwnd;
-  }
+    w.m_hwnd = hwnd;
 
-  ~MainWindow()
-  {
-    UnregisterClassW(L"MyFailureProject", GetModuleHandle(NULL));
+    return w;
   }
 
 
   void CreateGraphicResources()
   {
+    printf("CreateGraphicResources\n");
+    HRESULT hr = S_OK;
+
+    hr = D2D1CreateFactory(
+      D2D1_FACTORY_TYPE_SINGLE_THREADED,
+      &m_direct2d_factory);
+
+    if (FAILED(hr)) throw std::runtime_error(std::format("Failed to create graphic: {:x}", hr));
+
+    RECT rc;
+    GetClientRect(m_hwnd, &rc);
+
+    D2D1_SIZE_U size = D2D1::SizeU(
+      rc.right - rc.left,
+      rc.bottom - rc.top);
+
+    hr = m_direct2d_factory->CreateHwndRenderTarget(
+      D2D1::RenderTargetProperties(),
+      D2D1::HwndRenderTargetProperties(m_hwnd, size),
+      &m_render_target);
+
+    if (FAILED(hr)) throw std::runtime_error(std::format("Failed to create render target: {:x}", hr));
   }
 
   void CleanupGraphicResources()
+  {
+    SafeRelease(&m_render_target);
+    SafeRelease(&m_direct2d_factory);
+  }
+
+  void OnPaint()
   {
   }
 
@@ -116,6 +145,11 @@ public:
           printf("Exception: %s\n", e.what());
           PostMessage(hwnd, WM_DESTROY, 1, 0);
         }
+      } break;
+
+      case WM_PAINT:
+      {
+        OnPaint();
       } break;
 
       case WM_DESTROY:
@@ -157,7 +191,10 @@ int main()
 {
   try
   {
-    MainWindow t;
+    MainWindow::Register();
+    MainWindow t = MainWindow::Instance();
+
+
     t.Show();
     return 0;
   }

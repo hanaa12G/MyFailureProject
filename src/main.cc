@@ -2,9 +2,11 @@
 
 #include <stdio.h>
 #include <d2d1.h>
+#include <dwrite.h>
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 
 
@@ -68,9 +70,31 @@ public:
 
   struct Widget
   {
+    int width;
+    int height;
+    D2D1_COLOR_F color;
+
+    Widget(int p_width, int p_height, D2D1_COLOR_F p_color)
+    : width (p_width),
+      height (p_height),
+      color (p_color)
+    {
+    }
+
     void Draw(WidgetContext context)
     {
+      ID2D1SolidColorBrush* brush;
+      HRESULT hr = S_OK;
+      hr = context.render_target->CreateSolidColorBrush(color, &brush);
 
+      if (FAILED(hr)) return;
+
+      D2D1_RECT_F rec = D2D1::RectF(
+        0, 0, width, height);
+
+      context.render_target->FillRectangle(
+        rec,
+        brush);
     }
   };
 
@@ -83,12 +107,37 @@ public:
   IDWriteTextFormat* m_text_format = NULL;
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
-  std::vector<std::vector<Widget>> m_widgets;
+  std::vector<std::vector<Widget>> m_widgets = {};
 
 public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
-  MainWindow() = default;
+
+  MainWindow()
+  {
+    std::vector<Widget> rows;
+
+    rows.push_back(Widget(10, 50,
+    D2D1::ColorF(0.8, 0.2, 0.2, 1.0)
+    ));
+
+    rows.push_back(Widget(50, 30,
+    D2D1::ColorF(0.3, 0.4, 0.3, 1.0)));
+
+    m_widgets.push_back(rows);
+
+    rows.clear();
+
+    rows.push_back(Widget(30, 60,
+      D2D1::ColorF(0.1, 0.2, 0.5, 1.0)));
+
+    rows.push_back(Widget(60, 20,
+      D2D1::ColorF(0.4, 0.4, 0.4, 1.0)));
+
+    m_widgets.push_back(rows);
+
+
+  }
 
   static void Register()
   {
@@ -180,24 +229,29 @@ public:
 
     m_render_target->BeginDraw();
 
+    int x = 0;
+    int y = 0;
     WidgetContext wc = WidgetContext::CreateContext(this);
     for (int i = 0; i < m_widgets.size(); ++i)
     {
+      int max_y = 0;
+      x = 0;
       for (int j = 0; j < m_widgets.at(i).size(); ++j)
       {
-        m_widgets[i][j].Draw(wc);
+        D2D1_MATRIX_3X2_F translation = D2D1::Matrix3x2F::Translation (x, y);
+
+        m_render_target->SetTransform(translation);
+
+        Widget& w = m_widgets[i][j];
+        w.Draw(wc);
+        max_y = std::max(w.height, max_y);
+        x +=  w.width;
       }
+
+      y += max_y;
     }
 
-    D2D1_RECT_F rec = D2D1::RectF(0, 0, 100, 100);
-    m_render_target->FillRectangle(
-      rec,
-      brush);
     m_render_target->EndDraw();
-
-
-
-
 
     SafeRelease(&brush);
     

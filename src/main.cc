@@ -44,11 +44,46 @@ struct Window
 class MainWindow
 {
 public:
+
+  struct WidgetContext
+  {
+    ID2D1HwndRenderTarget* render_target = NULL; 
+    IDWriteFactory* dwrite_factory = NULL;
+    IDWriteTextFormat* text_format = NULL;
+    ID2D1SolidColorBrush* text_brush = NULL;
+
+
+    static WidgetContext CreateContext(MainWindow* m)
+    {
+      WidgetContext w;
+      w.render_target = m->m_render_target;
+      w.dwrite_factory = m->m_dwrite_factory;
+      w.text_format = m->m_text_format;
+      w.text_brush = m->m_text_brush;
+
+      return w;
+    }
+  };
+
+  struct Widget
+  {
+    void Draw(WidgetContext context)
+    {
+
+    }
+  };
+
+
   HWND m_hwnd = NULL;
   ID2D1Factory* m_direct2d_factory = NULL;
   ID2D1HwndRenderTarget* m_render_target = NULL; 
 
-  ID2D1SolidColorBrush* m_defautl_color_brush = NULL;
+  IDWriteFactory* m_dwrite_factory = NULL;
+  IDWriteTextFormat* m_text_format = NULL;
+  ID2D1SolidColorBrush* m_text_brush = NULL;
+
+  std::vector<std::vector<Widget>> m_widgets;
+
 public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
@@ -127,6 +162,44 @@ public:
 
   void OnPaint()
   {
+    HRESULT hr = S_OK;
+
+    if (!m_direct2d_factory)
+      CreateGraphicResources();
+
+
+    if (!SUCCEEDED(hr)) return;
+
+    ID2D1SolidColorBrush* brush; 
+    hr = m_render_target->CreateSolidColorBrush(
+      D2D1::ColorF(0.9, 0.1, 0.1, 1.0),
+      &brush);
+
+    if (!SUCCEEDED(hr)) return;
+
+    m_render_target->BeginDraw();
+
+    WidgetContext wc = WidgetContext::CreateContext(this);
+    for (int i = 0; i < m_widgets.size(); ++i)
+    {
+      for (int j = 0; j < m_widgets.at(i).size(); ++j)
+      {
+        m_widgets[i][j].Draw(wc);
+      }
+    }
+
+    D2D1_RECT_F rec = D2D1::RectF(0, 0, 100, 100);
+    m_render_target->FillRectangle(
+      rec,
+      brush);
+    m_render_target->EndDraw();
+
+
+
+
+
+    SafeRelease(&brush);
+    
   }
 
   LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)

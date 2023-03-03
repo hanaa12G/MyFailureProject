@@ -5,7 +5,8 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
-#include <format>
+
+
 
 template<typename Interface>
 void SafeRelease(Interface** i)
@@ -137,7 +138,7 @@ public:
       D2D1_FACTORY_TYPE_SINGLE_THREADED,
       &m_direct2d_factory);
 
-    if (FAILED(hr)) throw std::runtime_error(std::format("Failed to create graphic: {:x}", hr));
+    if (FAILED(hr)) throw std::runtime_error("Failed to create graphic: " + std::to_string(hr));
 
     RECT rc;
     GetClientRect(m_hwnd, &rc);
@@ -151,7 +152,7 @@ public:
       D2D1::HwndRenderTargetProperties(m_hwnd, size),
       &m_render_target);
 
-    if (FAILED(hr)) throw std::runtime_error(std::format("Failed to create render target: {:x}", hr));
+    if (FAILED(hr)) throw std::runtime_error("Failed to create render target: " + std::to_string(hr));
   }
 
   void CleanupGraphicResources()

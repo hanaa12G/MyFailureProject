@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include <windows.h>
 
 #include <stdio.h>
@@ -202,11 +203,41 @@ public:
       &m_render_target);
 
     if (FAILED(hr)) throw std::runtime_error("Failed to create render target: " + std::to_string(hr));
+
+
+    hr = DWriteCreateFactory(
+      DWRITE_FACTORY_TYPE_SHARED,
+      __uuidof(IDWriteFactory),
+      (IUnknown**) &m_dwrite_factory);
+
+    if (FAILED(hr)) throw std::runtime_error("Faied to create dwrite factory" + std::to_string(hr));
+
+
+    hr = m_dwrite_factory->CreateTextFormat(
+      L"Cascadia Code",
+      NULL,
+      DWRITE_FONT_WEIGHT_REGULAR,
+      DWRITE_FONT_STYLE_NORMAL,
+      DWRITE_FONT_STRETCH_NORMAL,
+      30.0f,
+      L"en-us",
+      &m_text_format);
+
+    if (FAILED(hr)) throw std::runtime_error("Faied to create font" + std::to_string(hr));
+
+
+    m_text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    m_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
   }
 
   void CleanupGraphicResources()
   {
     SafeRelease(&m_render_target);
+
+    SafeRelease(&m_text_format);
+    SafeRelease(&m_dwrite_factory);
+
     SafeRelease(&m_direct2d_factory);
   }
 
@@ -216,7 +247,6 @@ public:
 
     if (!m_direct2d_factory)
       CreateGraphicResources();
-
 
     if (!SUCCEEDED(hr)) return;
 

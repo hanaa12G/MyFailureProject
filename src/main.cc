@@ -18,11 +18,14 @@ void SafeRelease(Interface** i)
   (*i) = 0;
 }
 
+
+
 template<typename ChildWindow>
 struct Window
 {
   static LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
   {
+    printf("msg: %u\n", msg);
     ChildWindow* w = {NULL};
     if (msg == WM_NCCREATE)
     {
@@ -82,8 +85,11 @@ public:
     {
     }
 
-    void Draw(WidgetContext context)
+    virtual ~Widget() {}
+
+    virtual void Draw(WidgetContext context)
     {
+      printf("Widget::Draw\n");
       ID2D1SolidColorBrush* brush;
       HRESULT hr = S_OK;
       hr = context.render_target->CreateSolidColorBrush(color, &brush);
@@ -99,6 +105,106 @@ public:
     }
   };
 
+  struct Button: public Widget
+  {
+    std::wstring const mk_text;
+
+    virtual ~Button() {}
+    
+    Button(int p_width, int p_height, std::wstring p_text, D2D1_COLOR_F p_color)
+    : Widget(p_width, p_height, p_color),
+      mk_text (p_text)
+    {
+    }
+
+    virtual void Draw(WidgetContext context) override
+    {
+      printf("Button::Draw\n");
+      ID2D1SolidColorBrush* brush;
+      HRESULT hr = S_OK;
+      hr = context.render_target->CreateSolidColorBrush(color, &brush);
+
+      if (FAILED(hr)) return;
+
+      D2D1_RECT_F rec = D2D1::RectF(
+        0, 0, width, height);
+
+      context.render_target->DrawText(
+        mk_text.c_str(),
+        mk_text.size(),
+        context.text_format,
+        rec,
+        brush);
+    }
+  };
+
+  class Layout 
+  {
+  private:
+    std::vector<std::vector<Widget*>> m_widgets;
+  public:
+
+    void InitLayout()
+    {
+      std::vector<Widget*> rows;
+
+      rows.push_back(new Widget(10, 50,
+            D2D1::ColorF(0.8, 0.2, 0.2, 1.0)
+            ));
+
+      rows.push_back(new Button(70, 70,
+        L"Click me",
+        D2D1::ColorF(1.0, 1.0, 1.0, 1.0)));
+
+      m_widgets.push_back(rows);
+
+      rows.clear();
+
+      rows.push_back(new Widget(30, 60,
+            D2D1::ColorF(0.1, 0.2, 0.5, 1.0)));
+
+      rows.push_back(new Widget(60, 20,
+            D2D1::ColorF(0.4, 0.4, 0.4, 1.0)));
+
+      m_widgets.push_back(rows);
+    }
+
+    ~Layout()
+    {
+      for (auto i = m_widgets.begin(); i != m_widgets.end(); ++i)
+        for (auto j = i->begin(); j != i->end(); ++j)
+        {
+          Widget* w = *j;
+          if (w) delete w;
+        }
+    }
+
+
+    void Draw(WidgetContext context)
+    {
+      int x = 0;
+      int y = 0;
+      for (int i = 0; i < m_widgets.size(); ++i)
+      {
+        int max_y = 0;
+        x = 0;
+        for (int j = 0; j < m_widgets.at(i).size(); ++j)
+        {
+          D2D1_MATRIX_3X2_F translation = D2D1::Matrix3x2F::Translation (x, y);
+
+          context.render_target->SetTransform(translation);
+
+          Widget* w = m_widgets[i][j];
+          w->Draw(context);
+          max_y = std::max(w->height, max_y);
+          x +=  w->width;
+        }
+
+        y += max_y;
+      }
+    }
+  };
+
 
   HWND m_hwnd = NULL;
   ID2D1Factory* m_direct2d_factory = NULL;
@@ -108,37 +214,12 @@ public:
   IDWriteTextFormat* m_text_format = NULL;
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
-  std::vector<std::vector<Widget>> m_widgets = {};
+  Layout m_layout;
 
 public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
-
-  MainWindow()
-  {
-    std::vector<Widget> rows;
-
-    rows.push_back(Widget(10, 50,
-    D2D1::ColorF(0.8, 0.2, 0.2, 1.0)
-    ));
-
-    rows.push_back(Widget(50, 30,
-    D2D1::ColorF(0.3, 0.4, 0.3, 1.0)));
-
-    m_widgets.push_back(rows);
-
-    rows.clear();
-
-    rows.push_back(Widget(30, 60,
-      D2D1::ColorF(0.1, 0.2, 0.5, 1.0)));
-
-    rows.push_back(Widget(60, 20,
-      D2D1::ColorF(0.4, 0.4, 0.4, 1.0)));
-
-    m_widgets.push_back(rows);
-
-
-  }
+  MainWindow() = default;
 
   static void Register()
   {
@@ -219,7 +300,7 @@ public:
       DWRITE_FONT_WEIGHT_REGULAR,
       DWRITE_FONT_STYLE_NORMAL,
       DWRITE_FONT_STRETCH_NORMAL,
-      30.0f,
+      13.0f,
       L"en-us",
       &m_text_format);
 
@@ -257,29 +338,12 @@ public:
 
     if (!SUCCEEDED(hr)) return;
 
+
+
     m_render_target->BeginDraw();
 
-    int x = 0;
-    int y = 0;
     WidgetContext wc = WidgetContext::CreateContext(this);
-    for (int i = 0; i < m_widgets.size(); ++i)
-    {
-      int max_y = 0;
-      x = 0;
-      for (int j = 0; j < m_widgets.at(i).size(); ++j)
-      {
-        D2D1_MATRIX_3X2_F translation = D2D1::Matrix3x2F::Translation (x, y);
-
-        m_render_target->SetTransform(translation);
-
-        Widget& w = m_widgets[i][j];
-        w.Draw(wc);
-        max_y = std::max(w.height, max_y);
-        x +=  w.width;
-      }
-
-      y += max_y;
-    }
+    m_layout.Draw(wc);
 
     m_render_target->EndDraw();
 
@@ -289,13 +353,14 @@ public:
 
   LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
   {
-
+    printf("Child msg: %u, %d\n", msg, GetLastError());
     switch (msg)
     {
       case WM_CREATE:
       {
         try {
           CreateGraphicResources();
+          m_layout.InitLayout();
         }
 
         catch (std::exception e)
@@ -326,7 +391,7 @@ public:
 
   void Show()
   {
-    ShowWindow(m_hwnd, SW_RESTORE);
+    ShowWindow(m_hwnd, SW_SHOW);
     
     MSG msg;
     BOOL r;
@@ -354,12 +419,13 @@ int main()
 
 
     t.Show();
-    return 0;
   }
   catch (std::exception e)
   {
     printf("Exception: %s\n", e.what());
     return 1;
   }
+  printf("Final last error %d\n", GetLastError());
+  return 0;
 }
 //

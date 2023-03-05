@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <set>
 
 
 
@@ -17,6 +18,8 @@ void SafeRelease(Interface** i)
   (*i)->Release();
   (*i) = 0;
 }
+
+std::set<int> g_instances;
 
 
 
@@ -73,22 +76,37 @@ public:
 
   struct Widget
   {
+    int type_id;
+    int instance_id;
+
     int width;
     int height;
     D2D1_COLOR_F color;
+    D2D1_COLOR_F highlight_color;
+    D2D1_COLOR_F normal_color;
 
     Widget(int p_width, int p_height, D2D1_COLOR_F p_color)
-    : width (p_width),
+    : type_id(0),
+      instance_id(0),
+      width (p_width),
       height (p_height),
-      color (p_color)
+      color (p_color),
+      highlight_color (D2D1::ColorF(0.7, 0.7, 0.7, 1.0)),
+      normal_color (color)
     {
+      do
+      {
+        instance_id = rand();
+      }
+      while (g_instances.find(instance_id) != g_instances.end());
+
+      printf("Widget: uuid=%d\n", instance_id);
     }
 
     virtual ~Widget() {}
 
     virtual void Draw(WidgetContext context)
     {
-      printf("Widget::Draw\n");
       ID2D1SolidColorBrush* brush;
       HRESULT hr = S_OK;
       hr = context.render_target->CreateSolidColorBrush(color, &brush);
@@ -102,6 +120,18 @@ public:
         rec,
         brush);
     }
+
+    void SetActiveWidget(bool active)
+    {
+      if (active)
+      {
+        color = highlight_color;
+      }
+      else
+      {
+        color = normal_color;
+      }
+    }
   };
 
   struct Button: public Widget
@@ -114,11 +144,11 @@ public:
     : Widget(p_width, p_height, p_color),
       mk_text (p_text)
     {
+      printf("Button: uuid=%d\n", instance_id);
     }
 
     virtual void Draw(WidgetContext context) override
     {
-      printf("Button::Draw\n");
       ID2D1SolidColorBrush* brush;
       HRESULT hr = S_OK;
       hr = context.render_target->CreateSolidColorBrush(color, &brush);
@@ -139,8 +169,15 @@ public:
 
   class Layout 
   {
-  private:
-    std::vector<std::vector<Widget*>> m_widgets;
+  public:
+    struct WidgetState
+    {
+      int id_click = -1;
+    };
+
+
+    std::vector<std::vector<Widget*>> m_widgets = {};
+    WidgetState m_context = {};
   public:
 
     void InitLayout()
@@ -194,6 +231,7 @@ public:
           context.render_target->SetTransform(translation);
 
           Widget* w = m_widgets[i][j];
+          w->SetActiveWidget(m_context.id_click == w->instance_id);
           w->Draw(context);
           max_y = std::max(w->height, max_y);
           x +=  w->width;
@@ -201,6 +239,59 @@ public:
 
         y += max_y;
       }
+    }
+
+    void ProcessMouseEvent(int mouse_x, int mouse_y)
+    {
+      struct WidgetY {
+        Widget* w;
+        int y_from;
+        int y_to;
+      };
+      int x = 0;
+      int last_x = 0;
+
+
+      int y = 0;
+      std::vector<WidgetY> v;
+      for (auto i = m_widgets.begin(); i != m_widgets.end(); ++i)
+      {
+        x = 0;
+        last_x = 0;
+        int max_y = 0;
+        for (auto j = i->begin(); j != i->end(); ++j)
+        {
+          Widget* w = *j;
+          x += w->width;
+          max_y = std::max(max_y, w->height);
+
+          if (mouse_x > last_x && mouse_x < x)
+          {
+            WidgetY wy;
+            wy.w = w;
+            wy.y_from = y;
+            wy.y_to = y + w->height;
+
+            v.push_back(wy);
+          }
+
+          last_x = x;
+        }
+        y += max_y;
+      }
+
+
+      for (auto i = v.begin(); i != v.end(); ++i)
+      {
+        WidgetY wy = *i;
+        if (wy.y_from < mouse_y && wy.y_to > mouse_y)
+        {
+          m_context.id_click = wy.w->instance_id;
+          return;
+        }
+      }
+
+      m_context.id_click = -1;
     }
   };
 
@@ -214,6 +305,11 @@ public:
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
   Layout m_layout;
+
+  bool m_running = true;
+
+  int mouse_x = 0;
+  int mouse_y = 0;
 
 public:
   MainWindow(MainWindow const&) = delete;
@@ -385,6 +481,14 @@ public:
         PostQuitMessage(0);
         return 0;
       } break;
+      case WM_MOUSEMOVE:
+      {
+        mouse_x = LOWORD(lparam);
+        mouse_y = HIWORD(lparam);
+
+        m_layout.ProcessMouseEvent(mouse_x, mouse_y);
+        return 0;
+      } break;
       default:
       {
         return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -407,7 +511,16 @@ public:
         TranslateMessage(&msg);
         DispatchMessage(&msg);
       }
+
+
+      UpdateWidgetStatus();
+      OnPaint();
+      Sleep(10);
     }
+  }
+
+  void UpdateWidgetStatus()
+  {
   }
 };
 

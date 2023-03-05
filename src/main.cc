@@ -25,7 +25,6 @@ struct Window
 {
   static LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
   {
-    printf("msg: %u\n", msg);
     ChildWindow* w = {NULL};
     if (msg == WM_NCCREATE)
     {
@@ -353,7 +352,6 @@ public:
 
   LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
   {
-    printf("Child msg: %u, %d\n", msg, GetLastError());
     switch (msg)
     {
       case WM_CREATE:
@@ -375,10 +373,17 @@ public:
         OnPaint();
       } break;
 
+      case WM_CLOSE:
+      {
+        DestroyWindow(m_hwnd);
+        return 0;
+      } break;
       case WM_DESTROY:
       {
+        m_running = false;
         CleanupGraphicResources();
         PostQuitMessage(0);
+        return 0;
       } break;
       default:
       {
@@ -394,14 +399,10 @@ public:
     ShowWindow(m_hwnd, SW_SHOW);
     
     MSG msg;
-    BOOL r;
-    while ((r = GetMessage(&msg, m_hwnd, 0, 0)) != 0)
+    while (m_running)
     {
-      if (r == -1)
-      {
-        return;
-      }
-      else
+      BOOL r = 0;
+      while ((r = PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE)) != 0)
       {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
@@ -423,9 +424,9 @@ int main()
   catch (std::exception e)
   {
     printf("Exception: %s\n", e.what());
+    printf("last error %d\n", GetLastError());
     return 1;
   }
-  printf("Final last error %d\n", GetLastError());
   return 0;
 }
 //

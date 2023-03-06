@@ -315,6 +315,10 @@ public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
   MainWindow() = default;
+  ~MainWindow()
+  {
+    CleanupGraphicResources();
+  }
 
   static void Register()
   {
@@ -477,7 +481,6 @@ public:
       case WM_DESTROY:
       {
         m_running = false;
-        CleanupGraphicResources();
         PostQuitMessage(0);
         return 0;
       } break;
@@ -542,4 +545,4 @@ int main()
   }
   return 0;
 }
-//
+

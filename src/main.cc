@@ -10,12 +10,11 @@
 #include <vector>
 #include <set>
 #include <chrono>
-
+#include <optional>
 
 using IntervalClock = std::chrono::steady_clock;
 using Interval = std::chrono::milliseconds;
 using IntervalTimePoint = std::chrono::time_point<IntervalClock, Interval>;
-
 
 
 template<typename Interface>
@@ -26,6 +25,193 @@ void SafeRelease(Interface** i)
 }
 
 std::set<int> g_instances;
+
+struct WidgetContext
+{
+  ID2D1HwndRenderTarget* render_target = NULL; 
+  IDWriteFactory* dwrite_factory = NULL;
+  IDWriteTextFormat* text_format = NULL;
+  ID2D1SolidColorBrush* text_brush = NULL;
+
+
+};
+
+
+struct LayoutConstraint
+{
+  std::optional<int> max_width;
+  std::optional<int> max_height;
+  int x;
+  int y;
+};
+
+struct LayoutInfo
+{
+  int x;
+  int y;
+  int width;
+  int height;
+};
+
+struct Widget
+{
+  virtual ~Widget() {}
+  virtual LayoutInfo Layout(LayoutConstraint) = 0;
+  virtual void SaveLayout(LayoutInfo) = 0;
+  virtual void Draw(WidgetContext*) = 0;
+};
+
+struct Rectangle : public Widget 
+{
+  std::optional<LayoutInfo> m_info ;
+
+  int m_width;
+  int m_height;
+  D2D1_COLOR_F m_color;
+
+  virtual ~Rectangle()
+  {
+  }
+
+  Rectangle(int p_width, int p_height, D2D1_COLOR_F p_color)
+  : m_width (p_width),
+    m_height (p_height),
+    m_color (p_color)
+  {
+  }
+
+  virtual LayoutInfo Layout(LayoutConstraint c) override
+  {
+    LayoutInfo info = {};
+    info.x = c.x;
+    info.y = c.y;
+
+    if (c.max_width)
+    {
+      info.width = c.max_width.value() > m_width ? m_width : c.max_width.value();
+    }
+    else
+    {
+      info.width = m_width;
+    }
+
+    if (c.max_height)
+    {
+      info.height = c.max_height.value() > m_height ? m_height : c.max_height.value();
+    }
+    else
+    {
+      info.height = m_height;
+    }
+
+    return info;
+  }
+
+  virtual void SaveLayout(LayoutInfo info) override
+  {
+    m_info = info;
+  }
+
+  virtual void Draw(WidgetContext* context) override
+  {
+    if (!m_info) return;
+    LayoutInfo layout = m_info.value();
+
+    ID2D1SolidColorBrush* brush;
+    HRESULT hr = S_OK;
+    hr = context->render_target->CreateSolidColorBrush(m_color, &brush);
+
+    if (FAILED(hr)) return;
+
+    D2D1_RECT_F rec = D2D1::RectF(
+      layout.x, layout.y,
+      layout.width, layout.height);
+
+  }
+};
+
+struct VerticalContainer : public Widget
+{
+  std::vector<Widget*> m_children;
+  int m_width;
+  int m_height;
+  std::optional<LayoutInfo> m_info;
+
+
+  virtual ~VerticalContainer()
+  {
+  }
+
+  virtual LayoutInfo Layout(LayoutConstraint c) override
+  {
+    LayoutInfo info = {};
+    info.x = c.x;
+    info.y = c.y;
+    info.width = 0;
+    info.height = 0;
+
+    int x = 0;
+    int y = 0;
+
+    int max_width = m_width;
+    if (c.max_width)
+    {
+      max_width = c.max_width.value();
+    }
+    int max_height = m_height;
+    if (c.max_height)
+    {
+      max_height = c.max_height.value();
+    }
+
+    for (Widget* w: m_children)
+    {
+      LayoutConstraint child_constraint;
+      child_constraint.max_width = max_width;
+      child_constraint.max_height = max_height;
+      child_constraint.x = x;
+      child_constraint.y = y;
+
+      LayoutInfo child_layout = w->Layout(child_constraint);
+
+      x = child_layout.x + child_layout.width;
+      y = child_layout.y + child_layout.height;
+    }
+
+    info.width = x;
+    info.height = y;
+
+    return info;
+  }
+
+  virtual void SaveLayout(LayoutInfo info) override
+  {
+    m_info = info;
+  }
+
+  virtual void Draw(WidgetContext* context) override
+  {
+    if (!m_info) return;
+    LayoutInfo layout = m_info.value();
+
+
+    D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(layout.x, layout.y);
+    D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+    context->render_target->GetTransform(&parent_translation);
+
+    my_translation = parent_translation * my_translation;
+
+    context->render_target->SetTransform(my_translation);
+    for (Widget* w : m_children)
+    {
+      w->Draw(context);
+    }
+    context->render_target->SetTransform(parent_translation);
+
+  }
+
+
+};
 
 
 
@@ -60,246 +246,6 @@ class MainWindow
 {
 public:
 
-  struct WidgetContext
-  {
-    ID2D1HwndRenderTarget* render_target = NULL; 
-    IDWriteFactory* dwrite_factory = NULL;
-    IDWriteTextFormat* text_format = NULL;
-    ID2D1SolidColorBrush* text_brush = NULL;
-
-
-    static WidgetContext CreateContext(MainWindow* m)
-    {
-      WidgetContext w;
-      w.render_target = m->m_render_target;
-      w.dwrite_factory = m->m_dwrite_factory;
-      w.text_format = m->m_text_format;
-      w.text_brush = m->m_text_brush;
-
-      return w;
-    }
-  };
-
-  struct Widget
-  {
-    int type_id;
-    int instance_id;
-
-    int width;
-    int height;
-    D2D1_COLOR_F color;
-    D2D1_COLOR_F highlight_color;
-    D2D1_COLOR_F normal_color;
-
-    Widget(int p_width, int p_height, D2D1_COLOR_F p_color)
-    : type_id(0),
-      instance_id(0),
-      width (p_width),
-      height (p_height),
-      color (p_color),
-      highlight_color (D2D1::ColorF(0.7, 0.7, 0.7, 1.0)),
-      normal_color (color)
-    {
-      do
-      {
-        instance_id = rand();
-      }
-      while (g_instances.find(instance_id) != g_instances.end());
-
-      printf("Widget: uuid=%d\n", instance_id);
-    }
-
-    virtual ~Widget() {}
-
-    virtual void Draw(WidgetContext context)
-    {
-      ID2D1SolidColorBrush* brush;
-      HRESULT hr = S_OK;
-      hr = context.render_target->CreateSolidColorBrush(color, &brush);
-
-      if (FAILED(hr)) return;
-
-      D2D1_RECT_F rec = D2D1::RectF(
-        0, 0, width, height);
-
-      context.render_target->FillRectangle(
-        rec,
-        brush);
-    }
-
-    void SetActiveWidget(bool active)
-    {
-      if (active)
-      {
-        color = highlight_color;
-      }
-      else
-      {
-        color = normal_color;
-      }
-    }
-  };
-
-  struct Button: public Widget
-  {
-    std::wstring const mk_text;
-
-    virtual ~Button() {}
-    
-    Button(int p_width, int p_height, std::wstring p_text, D2D1_COLOR_F p_color)
-    : Widget(p_width, p_height, p_color),
-      mk_text (p_text)
-    {
-      printf("Button: uuid=%d\n", instance_id);
-    }
-
-    virtual void Draw(WidgetContext context) override
-    {
-      ID2D1SolidColorBrush* brush;
-      HRESULT hr = S_OK;
-      hr = context.render_target->CreateSolidColorBrush(color, &brush);
-
-      if (FAILED(hr)) return;
-
-      D2D1_RECT_F rec = D2D1::RectF(
-        0, 0, width, height);
-
-      context.render_target->DrawText(
-        mk_text.c_str(),
-        mk_text.size(),
-        context.text_format,
-        rec,
-        brush);
-    }
-  };
-
-  class Layout 
-  {
-  public:
-    struct WidgetState
-    {
-      int id_click = -1;
-    };
-
-
-    std::vector<std::vector<Widget*>> m_widgets = {};
-    WidgetState m_context = {};
-  public:
-
-    void InitLayout()
-    {
-      std::vector<Widget*> rows;
-
-      rows.push_back(new Widget(10, 50,
-            D2D1::ColorF(0.8, 0.2, 0.2, 1.0)
-            ));
-
-      rows.push_back(new Button(70, 70,
-        L"Click me",
-        D2D1::ColorF(1.0, 1.0, 1.0, 1.0)));
-
-      m_widgets.push_back(rows);
-
-      rows.clear();
-
-      rows.push_back(new Widget(30, 60,
-            D2D1::ColorF(0.1, 0.2, 0.5, 1.0)));
-
-      rows.push_back(new Widget(60, 20,
-            D2D1::ColorF(0.4, 0.4, 0.4, 1.0)));
-
-      m_widgets.push_back(rows);
-    }
-
-    ~Layout()
-    {
-      for (auto i = m_widgets.begin(); i != m_widgets.end(); ++i)
-        for (auto j = i->begin(); j != i->end(); ++j)
-        {
-          Widget* w = *j;
-          if (w) delete w;
-        }
-    }
-
-
-    void Draw(WidgetContext context)
-    {
-      int x = 0;
-      int y = 0;
-      for (int i = 0; i < m_widgets.size(); ++i)
-      {
-        int max_y = 0;
-        x = 0;
-        for (int j = 0; j < m_widgets.at(i).size(); ++j)
-        {
-          D2D1_MATRIX_3X2_F translation = D2D1::Matrix3x2F::Translation (x, y);
-
-          context.render_target->SetTransform(translation);
-
-          Widget* w = m_widgets[i][j];
-          w->SetActiveWidget(m_context.id_click == w->instance_id);
-          w->Draw(context);
-          max_y = std::max(w->height, max_y);
-          x +=  w->width;
-        }
-
-        y += max_y;
-      }
-    }
-
-    void ProcessMouseEvent(int mouse_x, int mouse_y)
-    {
-      struct WidgetY {
-        Widget* w;
-        int y_from;
-        int y_to;
-      };
-      int x = 0;
-      int last_x = 0;
-
-
-      int y = 0;
-      std::vector<WidgetY> v;
-      for (auto i = m_widgets.begin(); i != m_widgets.end(); ++i)
-      {
-        x = 0;
-        last_x = 0;
-        int max_y = 0;
-        for (auto j = i->begin(); j != i->end(); ++j)
-        {
-          Widget* w = *j;
-          x += w->width;
-          max_y = std::max(max_y, w->height);
-
-          if (mouse_x > last_x && mouse_x < x)
-          {
-            WidgetY wy;
-            wy.w = w;
-            wy.y_from = y;
-            wy.y_to = y + w->height;
-
-            v.push_back(wy);
-          }
-
-          last_x = x;
-        }
-        y += max_y;
-      }
-
-
-      for (auto i = v.begin(); i != v.end(); ++i)
-      {
-        WidgetY wy = *i;
-        if (wy.y_from < mouse_y && wy.y_to > mouse_y)
-        {
-          m_context.id_click = wy.w->instance_id;
-          return;
-        }
-      }
-
-      m_context.id_click = -1;
-    }
-  };
 
 
   HWND m_hwnd = NULL;
@@ -310,7 +256,7 @@ public:
   IDWriteTextFormat* m_text_format = NULL;
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
-  Layout m_layout;
+  Widget* m_layout;
 
   bool m_running = true;
 
@@ -447,13 +393,17 @@ public:
 
     m_render_target->BeginDraw();
 
-    WidgetContext wc = WidgetContext::CreateContext(this);
-    m_layout.Draw(wc);
+    WidgetContext wc = CreateContext(this);
+    m_layout->Draw(&wc);
 
     m_render_target->EndDraw();
 
     SafeRelease(&brush);
     
+  }
+
+  void InitLayout()
+  {
   }
 
   LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -464,7 +414,7 @@ public:
       {
         try {
           CreateGraphicResources();
-          m_layout.InitLayout();
+          InitLayout();
         }
 
         catch (std::exception e)
@@ -495,7 +445,18 @@ public:
         mouse_x = LOWORD(lparam);
         mouse_y = HIWORD(lparam);
 
-        m_layout.ProcessMouseEvent(mouse_x, mouse_y);
+
+
+        return 0;
+      } break;
+      case WM_LBUTTONDOWN:
+      {
+        printf("Button down\n");
+        return 0;
+      } break;
+      case WM_LBUTTONUP:
+      {
+        printf("Button up\n");
         return 0;
       } break;
       default:
@@ -540,7 +501,7 @@ public:
       }
 
       Interval total_duration = end_frame_ts - start_show;
-      printf("Frame: %u, Time: %u\n", frame % 60, total_duration.count() );
+      // printf("Frame: %u, Time: %u\n", frame % 60, total_duration.count() );
 
       frame += 1;
     }
@@ -548,6 +509,17 @@ public:
 
   void UpdateWidgetStatus()
   {
+  }
+
+  static WidgetContext CreateContext(MainWindow* m)
+  {
+    WidgetContext w;
+    w.render_target = m->m_render_target;
+    w.dwrite_factory = m->m_dwrite_factory;
+    w.text_format = m->m_text_format;
+    w.text_brush = m->m_text_brush;
+
+    return w;
   }
 };
 

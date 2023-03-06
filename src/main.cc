@@ -9,6 +9,12 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <chrono>
+
+
+using IntervalClock = std::chrono::steady_clock;
+using Interval = std::chrono::milliseconds;
+using IntervalTimePoint = std::chrono::time_point<IntervalClock, Interval>;
 
 
 
@@ -506,8 +512,13 @@ public:
     ShowWindow(m_hwnd, SW_SHOW);
     
     MSG msg;
+    const float ms_per_frame = 1000.0 / 60;
+
+    unsigned long long frame = 0;
+    IntervalTimePoint start_show = std::chrono::time_point_cast<Interval>(IntervalClock::now());
     while (m_running)
     {
+      IntervalTimePoint start_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
       BOOL r = 0;
       while ((r = PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE)) != 0)
       {
@@ -518,7 +529,20 @@ public:
 
       UpdateWidgetStatus();
       OnPaint();
-      Sleep(10);
+
+
+      IntervalTimePoint end_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
+
+      Interval frame_duration = end_frame_ts - start_frame_ts;
+      for (; frame_duration.count() < ms_per_frame; frame_duration =  end_frame_ts - start_frame_ts)
+      {
+        end_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
+      }
+
+      Interval total_duration = end_frame_ts - start_show;
+      printf("Frame: %u, Time: %u\n", frame % 60, total_duration.count() );
+
+      frame += 1;
     }
   }
 

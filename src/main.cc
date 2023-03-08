@@ -12,6 +12,71 @@
 #include <chrono>
 #include <optional>
 
+namespace logger
+{
+  static const int debug=4;
+  static const int info=3;
+  static const int normal=2;
+  static const int warning=1;
+  static const int error=0;
+  static int current_log_level = normal;
+
+  void Init()
+  {
+    char* level = getenv("LOG_LEVEL");
+    if (!level)
+    {
+      current_log_level = normal;
+    }
+    else
+    {
+      char c = level[0];
+      current_log_level = c - '0';
+    }
+  }
+
+  template<typename ...T>
+  void Debug(char const* s, T...t)
+  {
+    if (current_log_level >= debug)
+    {
+      std::printf(s, t...);
+      std::printf("\n");
+    }
+
+  }
+
+  template<typename ...T>
+  void Info(char const* s, T...t)
+  {
+    if (current_log_level >= info)
+    {
+      std::printf(s, t...);
+      std::printf("\n");
+    }
+  }
+
+  template<typename ...T>
+  void Warning(char const* s, T...t)
+  {
+    if (current_log_level >= warning)
+    {
+      std::printf(s, t...);
+      std::printf("\n");
+    }
+  }
+
+  template<typename ...T>
+  void Error(char const* s, T...t)
+  {
+    if (current_log_level >= error)
+    {
+      std::printf(s, t...);
+      std::printf("\n");
+    }
+  }
+}
+
 using IntervalClock = std::chrono::steady_clock;
 using Interval = std::chrono::milliseconds;
 using IntervalTimePoint = std::chrono::time_point<IntervalClock, Interval>;
@@ -26,17 +91,22 @@ void SafeRelease(Interface** i)
 
 std::set<int> g_instances;
 
+struct UserInput
+{
+
+  int x;
+  int y; 
+  int state;
+
+};
+
 struct WidgetContext
 {
   ID2D1HwndRenderTarget* render_target = NULL; 
   IDWriteFactory* dwrite_factory = NULL;
   IDWriteTextFormat* text_format = NULL;
   ID2D1SolidColorBrush* text_brush = NULL;
-
-
 };
-
-
 struct LayoutConstraint
 {
   std::optional<int> max_width;
@@ -53,6 +123,10 @@ struct LayoutInfo
   int height;
 };
 
+
+namespace widget
+{
+
 struct Widget
 {
   virtual ~Widget() {}
@@ -63,7 +137,7 @@ struct Widget
 
 struct Rectangle : public Widget 
 {
-  std::optional<LayoutInfo> m_info ;
+  std::optional<LayoutInfo> m_info; 
 
   int m_width;
   int m_height;
@@ -104,6 +178,8 @@ struct Rectangle : public Widget
       info.height = m_height;
     }
 
+    logger::Debug("INFO (Rectangle): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
     return info;
   }
 
@@ -114,6 +190,7 @@ struct Rectangle : public Widget
 
   virtual void Draw(WidgetContext* context) override
   {
+    logger::Debug("Rectangle::Draw");
     if (!m_info) return;
     LayoutInfo layout = m_info.value();
 
@@ -124,8 +201,25 @@ struct Rectangle : public Widget
     if (FAILED(hr)) return;
 
     D2D1_RECT_F rec = D2D1::RectF(
-      layout.x, layout.y,
+      0, 0,
       layout.width, layout.height);
+
+    D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(layout.x, layout.y);
+
+    D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+
+    context->render_target->GetTransform(&parent_translation);
+
+    my_translation = parent_translation * my_translation;
+
+    context->render_target->SetTransform(my_translation);
+
+    context->render_target->FillRectangle(
+      rec,
+      brush
+    );
+
+    context->render_target->SetTransform(parent_translation);
 
   }
 };
@@ -133,6 +227,8 @@ struct Rectangle : public Widget
 struct VerticalContainer : public Widget
 {
   std::vector<Widget*> m_children;
+  std::vector<LayoutInfo> m_children_layout;
+
   int m_width;
   int m_height;
   std::optional<LayoutInfo> m_info;
@@ -164,33 +260,43 @@ struct VerticalContainer : public Widget
       max_height = c.max_height.value();
     }
 
+    m_children_layout.clear();
     for (Widget* w: m_children)
     {
       LayoutConstraint child_constraint;
       child_constraint.max_width = max_width;
       child_constraint.max_height = max_height;
-      child_constraint.x = x;
+      child_constraint.x = 0;
       child_constraint.y = y;
 
       LayoutInfo child_layout = w->Layout(child_constraint);
+      m_children_layout.push_back(child_layout);
 
-      x = child_layout.x + child_layout.width;
+
+      x = std::max(x, child_layout.x + child_layout.width);
       y = child_layout.y + child_layout.height;
     }
 
     info.width = x;
     info.height = y;
+    logger::Debug("INFO (VerticalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
 
     return info;
   }
 
   virtual void SaveLayout(LayoutInfo info) override
   {
+    
     m_info = info;
+    for (size_t i = 0; i < m_children.size(); ++i)
+    {
+      m_children.at(i)->SaveLayout(m_children_layout.at(i));
+    }
   }
 
   virtual void Draw(WidgetContext* context) override
   {
+    logger::Debug("VerticalContainer::Draw");
     if (!m_info) return;
     LayoutInfo layout = m_info.value();
 
@@ -212,6 +318,102 @@ struct VerticalContainer : public Widget
 
 
 };
+
+struct HorizontalContainer : public Widget
+{
+  std::vector<Widget*> m_children;
+  std::vector<LayoutInfo> m_children_layout;
+
+  int m_width;
+  int m_height;
+  std::optional<LayoutInfo> m_info;
+
+
+  virtual ~HorizontalContainer()
+  {
+  }
+
+  virtual LayoutInfo Layout(LayoutConstraint c) override
+  {
+    LayoutInfo info = {};
+    info.x = c.x;
+    info.y = c.y;
+    info.width = 0;
+    info.height = 0;
+
+    int x = 0;
+    int y = 0;
+
+    int max_width = m_width;
+    if (c.max_width)
+    {
+      max_width = c.max_width.value();
+    }
+    int max_height = m_height;
+    if (c.max_height)
+    {
+      max_height = c.max_height.value();
+    }
+
+    m_children_layout.clear();
+    for (Widget* w: m_children)
+    {
+      LayoutConstraint child_constraint;
+      child_constraint.max_width = max_width;
+      child_constraint.max_height = max_height;
+      child_constraint.x = x;
+      child_constraint.y = 0;
+
+      LayoutInfo child_layout = w->Layout(child_constraint);
+      m_children_layout.push_back(child_layout);
+
+
+      x = child_layout.x + child_layout.width;
+      y = std::max(y, child_layout.y + child_layout.height);
+    }
+
+    info.width = x;
+    info.height = y;
+    logger::Debug("INFO (HorizontalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+    return info;
+  }
+
+  virtual void SaveLayout(LayoutInfo info) override
+  {
+    
+    m_info = info;
+    for (size_t i = 0; i < m_children.size(); ++i)
+    {
+      m_children.at(i)->SaveLayout(m_children_layout.at(i));
+    }
+  }
+
+  virtual void Draw(WidgetContext* context) override
+  {
+    logger::Debug("HorizontalContainer::Draw");
+    if (!m_info) return;
+    LayoutInfo layout = m_info.value();
+
+
+    D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(layout.x, layout.y);
+    D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+    context->render_target->GetTransform(&parent_translation);
+
+    my_translation = parent_translation * my_translation;
+
+    context->render_target->SetTransform(my_translation);
+    for (Widget* w : m_children)
+    {
+      w->Draw(context);
+    }
+    context->render_target->SetTransform(parent_translation);
+
+  }
+
+
+};
+}
 
 
 
@@ -256,17 +458,19 @@ public:
   IDWriteTextFormat* m_text_format = NULL;
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
-  Widget* m_layout;
+  widget::Widget* m_layout;
 
   bool m_running = true;
 
-  int mouse_x = 0;
-  int mouse_y = 0;
+  UserInput m_user_input;
 
 public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
-  MainWindow() = default;
+  MainWindow()
+  {
+    InitLayout();
+  }
   ~MainWindow()
   {
     CleanupGraphicResources();
@@ -296,7 +500,7 @@ public:
       L"MyFailureProject",
       L"Window Name",
       WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, CW_USEDEFAULT,
+      640, 480,
       CW_USEDEFAULT, CW_USEDEFAULT,
       0,
       0,
@@ -394,7 +598,17 @@ public:
     m_render_target->BeginDraw();
 
     WidgetContext wc = CreateContext(this);
+    LayoutConstraint constraint;
+    constraint.max_width = 640;
+    constraint.max_height = 480;
+    constraint.x = 0;
+    constraint.y = 0;
+
+    LayoutInfo info = m_layout->Layout(constraint);
+
+    m_layout->SaveLayout(info);
     m_layout->Draw(&wc);
+
 
     m_render_target->EndDraw();
 
@@ -404,6 +618,21 @@ public:
 
   void InitLayout()
   {
+    m_layout = new widget::VerticalContainer();
+
+    auto layout = dynamic_cast<widget::VerticalContainer*>(m_layout);
+    layout->m_children.push_back(new widget::Rectangle (100, 100, D2D1::ColorF(1.0, 0.2, 0.8, 1.0)));
+
+    auto horizontal_items = new widget::HorizontalContainer();
+
+    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.0, 0.4, 0.8, 1.0)));
+    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.3, 0.3, 0.2, 1.0)));
+    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.3, 0.7, 0.1, 1.0)));
+    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.8, 0.3, 0.5, 1.0)));
+    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.5, 0.3, 0.5, 1.0)));
+
+    layout->m_children.push_back(horizontal_items);
+
   }
 
   LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -414,7 +643,6 @@ public:
       {
         try {
           CreateGraphicResources();
-          InitLayout();
         }
 
         catch (std::exception e)
@@ -442,10 +670,6 @@ public:
       } break;
       case WM_MOUSEMOVE:
       {
-        mouse_x = LOWORD(lparam);
-        mouse_y = HIWORD(lparam);
-
-
 
         return 0;
       } break;
@@ -501,7 +725,7 @@ public:
       }
 
       Interval total_duration = end_frame_ts - start_show;
-      // printf("Frame: %u, Time: %u\n", frame % 60, total_duration.count() );
+      logger::Info("Frame: %u, Time: %u", frame % 60, total_duration.count() );
 
       frame += 1;
     }
@@ -527,6 +751,7 @@ int main()
 {
   try
   {
+    logger::Init();
     MainWindow::Register();
     MainWindow t = MainWindow::Instance();
 

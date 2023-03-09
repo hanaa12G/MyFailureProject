@@ -12,6 +12,7 @@
 #include <chrono>
 #include <optional>
 
+
 namespace logger
 {
   static const int debug=4;
@@ -76,6 +77,7 @@ namespace logger
     }
   }
 }
+#include "widget.cc"
 
 using IntervalClock = std::chrono::steady_clock;
 using Interval = std::chrono::milliseconds;
@@ -135,19 +137,70 @@ struct Widget
   virtual void Draw(WidgetContext*) = 0;
 };
 
+struct WidgetSize
+{
+  enum Type {
+    Undefined,
+    Fixed,
+    Ratio,
+  };
+
+  Type  type = Type::Undefined;
+  float value = 0.0f;
+
+  operator bool()
+  {
+    return type != Type::Undefined;
+  }
+
+  static WidgetSize FixSize(float pixel)
+  {
+    return WidgetSize {
+      Type::Fixed,
+      pixel
+    };
+  }
+  static WidgetSize RatioSize(float ratio)
+  {
+    return WidgetSize {
+      Type::Ratio,
+      ratio
+    };
+  }
+};
+
+WidgetSize operator ""_px(long double pixel)
+{
+  return WidgetSize::FixSize(pixel);
+}
+WidgetSize operator ""_px(unsigned long long int pixel)
+{
+  return WidgetSize::FixSize(pixel);
+}
+
+WidgetSize operator ""_pc(unsigned long long int pixel)
+{
+  return WidgetSize::RatioSize(pixel);
+}
+WidgetSize operator ""_pc(long double pixel)
+{
+  return WidgetSize::RatioSize(pixel);
+}
+
+
 struct Rectangle : public Widget 
 {
   std::optional<LayoutInfo> m_info; 
 
-  int m_width;
-  int m_height;
+  WidgetSize m_width;
+  WidgetSize m_height;
   D2D1_COLOR_F m_color;
 
   virtual ~Rectangle()
   {
   }
 
-  Rectangle(int p_width, int p_height, D2D1_COLOR_F p_color)
+  Rectangle(WidgetSize p_width, WidgetSize p_height, D2D1_COLOR_F p_color)
   : m_width (p_width),
     m_height (p_height),
     m_color (p_color)
@@ -458,7 +511,7 @@ public:
   IDWriteTextFormat* m_text_format = NULL;
   ID2D1SolidColorBrush* m_text_brush = NULL;
 
-  widget::Widget* m_layout;
+  gui::Widget* m_layout;
 
   bool m_running = true;
 
@@ -597,14 +650,14 @@ public:
 
     m_render_target->BeginDraw();
 
-    WidgetContext wc = CreateContext(this);
-    LayoutConstraint constraint;
+    gui::RenderContext wc = CreateContext(this);
+    gui::LayoutConstraint constraint;
     constraint.max_width = 640;
     constraint.max_height = 480;
     constraint.x = 0;
     constraint.y = 0;
 
-    LayoutInfo info = m_layout->Layout(constraint);
+    gui::LayoutInfo info = m_layout->Layout(&constraint);
 
     m_layout->SaveLayout(info);
     m_layout->Draw(&wc);
@@ -618,20 +671,48 @@ public:
 
   void InitLayout()
   {
-    m_layout = new widget::VerticalContainer();
+    // m_layout = new gui::Rectangle(
+    //   {gui::WidgetSize::Type::Fixed, 20},
+    //   {gui::WidgetSize::Type::Fixed, 20},
+    //   D2D1::ColorF(1.0, 0.2, 0.8, 1.0)
+    // );
 
-    auto layout = dynamic_cast<widget::VerticalContainer*>(m_layout);
-    layout->m_children.push_back(new widget::Rectangle (100, 100, D2D1::ColorF(1.0, 0.2, 0.8, 1.0)));
+    m_layout = new gui::VerticalContainer();
+    auto layout = dynamic_cast<gui::VerticalContainer*>(m_layout);
+    layout->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 100}, 
+      { gui::WidgetSize::Type::Fixed, 100},
+      D2D1::ColorF(1.0, 0.2, 0.8, 1.0)));
 
-    auto horizontal_items = new widget::HorizontalContainer();
+    auto horizontal_items = new gui::HorizontalContainer();
 
-    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.0, 0.4, 0.8, 1.0)));
-    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.3, 0.3, 0.2, 1.0)));
-    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.3, 0.7, 0.1, 1.0)));
-    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.8, 0.3, 0.5, 1.0)));
-    horizontal_items->m_children.push_back(new widget::Rectangle (20, 20, D2D1::ColorF(0.5, 0.3, 0.5, 1.0)));
+    horizontal_items->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 20}, 
+      { gui::WidgetSize::Type::Fixed, 20},
+      D2D1::ColorF(0.0, 0.4, 0.8, 1.0)));
+    horizontal_items->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 20}, 
+      { gui::WidgetSize::Type::Fixed, 10},
+      D2D1::ColorF(0.3, 0.3, 0.2, 1.0)));
+    horizontal_items->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 20}, 
+      { gui::WidgetSize::Type::Fixed, 20},
+      D2D1::ColorF(0.3, 0.7, 0.1, 1.0)));
+    horizontal_items->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 20}, 
+      { gui::WidgetSize::Type::Fixed, 10},
+      D2D1::ColorF(0.8, 0.3, 0.5, 1.0)));
+    horizontal_items->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Fixed, 20}, 
+      { gui::WidgetSize::Type::Fixed, 20},
+      D2D1::ColorF(0.5, 0.3, 0.5, 1.0)));
 
-    layout->m_children.push_back(horizontal_items);
+    layout->PushBack(horizontal_items);
+
+    layout->PushBack(new gui::Rectangle (
+      { gui::WidgetSize::Type::Percent, 100},
+      { gui::WidgetSize::Type::Fixed, 30},
+      D2D1::ColorF(0.8, 0.8, 0.8, 1.0)));
 
   }
 
@@ -735,9 +816,9 @@ public:
   {
   }
 
-  static WidgetContext CreateContext(MainWindow* m)
+  static gui::RenderContext CreateContext(MainWindow* m)
   {
-    WidgetContext w;
+    gui::RenderContext w;
     w.render_target = m->m_render_target;
     w.dwrite_factory = m->m_dwrite_factory;
     w.text_format = m->m_text_format;

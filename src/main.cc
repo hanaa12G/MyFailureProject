@@ -171,14 +171,18 @@ public:
 
   bool m_running = true;
 
-  UserInput m_user_input;
+  UserInput m_user_input = {};
+
+  int m_width = 0;
+  int m_height = 0;
+
 
 public:
   MainWindow(MainWindow const&) = delete;
   MainWindow(MainWindow&&) = default;
   MainWindow()
   {
-    InitLayout();
+    UpdateLayout();
   }
   ~MainWindow()
   {
@@ -308,8 +312,8 @@ public:
 
     gui::RenderContext wc = CreateContext(this);
     gui::LayoutConstraint constraint;
-    constraint.max_width = 640;
-    constraint.max_height = 480;
+    constraint.max_width = m_width;
+    constraint.max_height = m_height;
     constraint.x = 0;
     constraint.y = 0;
 
@@ -325,14 +329,8 @@ public:
     
   }
 
-  void InitLayout()
+  void UpdateLayout()
   {
-    // m_layout = new gui::Rectangle(
-    //   {gui::WidgetSize::Type::Fixed, 20},
-    //   {gui::WidgetSize::Type::Fixed, 20},
-    //   D2D1::ColorF(1.0, 0.2, 0.8, 1.0)
-    // );
-
     m_layout = new gui::VerticalContainer();
     auto layout = dynamic_cast<gui::VerticalContainer*>(m_layout);
     layout->PushBack(new gui::Rectangle (
@@ -387,6 +385,14 @@ public:
           printf("Exception: %s\n", e.what());
           PostMessage(hwnd, WM_DESTROY, 1, 0);
         }
+      } break;
+
+      case WM_SIZE:
+      {
+        m_width = LOWORD(lparam);
+        m_height = HIWORD(lparam);
+        UpdateLayout();
+        return 0;
       } break;
 
       case WM_PAINT:

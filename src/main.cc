@@ -12,7 +12,6 @@
 #include <chrono>
 #include <optional>
 
-
 namespace logger
 {
   static const int debug=4;
@@ -102,30 +101,6 @@ struct UserInput
 
 };
 
-struct WidgetContext
-{
-  ID2D1HwndRenderTarget* render_target = NULL; 
-  IDWriteFactory* dwrite_factory = NULL;
-  IDWriteTextFormat* text_format = NULL;
-  ID2D1SolidColorBrush* text_brush = NULL;
-};
-struct LayoutConstraint
-{
-  std::optional<int> max_width;
-  std::optional<int> max_height;
-  int x;
-  int y;
-};
-
-struct LayoutInfo
-{
-  int x;
-  int y;
-  int width;
-  int height;
-};
-
-
 template<typename ChildWindow>
 struct Window
 {
@@ -172,6 +147,7 @@ public:
   bool m_running = true;
 
   UserInput m_user_input = {};
+  gui::InteractionContext m_interaction_context = {};
 
   int m_width = 0;
   int m_height = 0;
@@ -182,7 +158,6 @@ public:
   MainWindow(MainWindow&&) = default;
   MainWindow()
   {
-    UpdateLayout();
   }
   ~MainWindow()
   {
@@ -320,7 +295,7 @@ public:
     gui::LayoutInfo info = m_layout->Layout(&constraint);
 
     m_layout->SaveLayout(info);
-    m_layout->Draw(&wc);
+    m_layout->Draw(&wc, m_interaction_context);
 
 
     m_render_target->EndDraw();
@@ -389,8 +364,35 @@ public:
 
       case WM_SIZE:
       {
-        m_width = LOWORD(lparam);
-        m_height = HIWORD(lparam);
+        int width = LOWORD(lparam);
+        int height = HIWORD(lparam);
+
+        if (m_width == width && m_height == height)
+        {
+          return 0;
+        }
+
+        if (m_render_target)
+        {
+          SafeRelease(&m_render_target);
+    
+          RECT rc;
+          GetClientRect(m_hwnd, &rc);
+
+          D2D1_SIZE_U size = D2D1::SizeU(
+            rc.right - rc.left,
+            rc.bottom - rc.top);
+
+          HRESULT hr = m_direct2d_factory->CreateHwndRenderTarget(
+            D2D1::RenderTargetProperties(),
+            D2D1::HwndRenderTargetProperties(m_hwnd, size),
+            &m_render_target);
+
+          if (FAILED(hr)) throw std::runtime_error("Failed to create render target: " + std::to_string(hr));
+        }
+
+        m_width = width;
+        m_height = height;
         UpdateLayout();
         return 0;
       } break;
@@ -413,7 +415,10 @@ public:
       } break;
       case WM_MOUSEMOVE:
       {
+        int mouse_x = LOWORD(lparam);
+        int mouse_y = HIWORD(lparam);
 
+        OnMouseEvent(mouse_x, mouse_y);
         return 0;
       } break;
       case WM_LBUTTONDOWN:
@@ -464,6 +469,8 @@ public:
       Interval frame_duration = end_frame_ts - start_frame_ts;
       for (; frame_duration.count() < ms_per_frame; frame_duration =  end_frame_ts - start_frame_ts)
       {
+        if (frame_duration.count() < ms_per_frame - 2)
+          std::this_thread::sleep_for(Interval(1));
         end_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
       }
 
@@ -476,6 +483,24 @@ public:
 
   void UpdateWidgetStatus()
   {
+    logger::Debug("Hightlight widget is %p", m_interaction_context.hot);
+  }
+
+  void OnMouseEvent(int x, int y)
+  {
+    if (!m_layout)
+      return;
+    
+    gui::Widget* w = m_layout->HitTest(x, y);
+
+    if (w)
+    {
+      m_interaction_context.hot = w;
+    }
+    else
+    {
+      m_interaction_context.hot = NULL;
+    }
   }
 
   static gui::RenderContext CreateContext(MainWindow* m)

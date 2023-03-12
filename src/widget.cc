@@ -21,7 +21,12 @@
 
 namespace gui
 {
-
+  template<typename Interface>
+  void SafeRelease(Interface** i)
+  {
+    (*i)->Release();
+    (*i) = 0;
+  }
 
   struct WidgetSize
   {
@@ -56,6 +61,13 @@ namespace gui
     int height = 0;
   };
 
+  struct Widget;
+  struct InteractionContext
+  {
+    Widget* hot = NULL;
+  };
+
+
   bool IsLayoutInfoValid(LayoutInfo info)
   {
     return info.x != 0 ||
@@ -77,7 +89,8 @@ namespace gui
     virtual ~Widget() {}
     virtual LayoutInfo Layout(LayoutConstraint const*) = 0;
     virtual void SaveLayout(LayoutInfo) = 0;
-    virtual void Draw(RenderContext*) = 0;
+    virtual void Draw(RenderContext*, InteractionContext) = 0;
+    virtual Widget* HitTest(int, int) = 0;
   };
 
   struct Rectangle : public Widget 
@@ -87,6 +100,7 @@ namespace gui
     WidgetSize m_width = WidgetSize();
     WidgetSize m_height = WidgetSize();
     D2D1_COLOR_F m_color;
+    D2D1_COLOR_F m_highlight_color;
 
     virtual ~Rectangle()
     {
@@ -96,7 +110,8 @@ namespace gui
     Rectangle(WidgetSize p_width, WidgetSize p_height, D2D1_COLOR_F p_color)
     : m_width (p_width),
       m_height (p_height),
-      m_color (p_color)
+      m_color (p_color),
+      m_highlight_color(D2D1::ColorF(0.7, 0.7, 0.7, 1.0))
     {
     }
 
@@ -125,7 +140,7 @@ namespace gui
         m_info = new LayoutInfo(info);
     }
 
-    virtual void Draw(RenderContext* context) override
+    virtual void Draw(RenderContext* context, InteractionContext interaction_context) override
     {
       logger::Debug("Rectangle::Draw");
       if (!m_info)
@@ -137,7 +152,14 @@ namespace gui
 
       ID2D1SolidColorBrush* brush;
       HRESULT hr = S_OK;
-      hr = context->render_target->CreateSolidColorBrush(m_color, &brush);
+      if (interaction_context.hot == this)
+      {
+        hr = context->render_target->CreateSolidColorBrush(m_highlight_color, &brush);
+      }
+      else
+      {
+        hr = context->render_target->CreateSolidColorBrush(m_color, &brush);
+      }
 
       if (FAILED(hr)) return;
 
@@ -162,6 +184,7 @@ namespace gui
 
       context->render_target->SetTransform(parent_translation);
 
+      SafeRelease(&brush);
     }
 
 
@@ -198,6 +221,21 @@ namespace gui
       }
       assert(false);
       return 0;
+    }
+
+
+    virtual Widget* HitTest(int x, int y) override
+    {
+      if (!m_info || !IsLayoutInfoValid(*m_info))
+        return NULL;
+      
+      if (x > m_info->x && x < m_info->x + m_info->width &&
+          y > m_info->y && y < m_info->y + m_info->height)
+      {
+        return this;
+      }
+
+      return NULL;
     }
   };
 
@@ -279,7 +317,7 @@ namespace gui
       }
     }
 
-    virtual void Draw(RenderContext* context) override
+    virtual void Draw(RenderContext* context, InteractionContext interaction_context) override
     {
       logger::Debug("VerticalContainer::Draw");
       if (!IsLayoutInfoValid(m_info)) return;
@@ -296,7 +334,7 @@ namespace gui
       context->render_target->SetTransform(my_translation);
       for (ChildNode& node : m_children)
       {
-        node.widget->Draw(context);
+        node.widget->Draw(context, interaction_context);
       }
       context->render_target->SetTransform(parent_translation);
 
@@ -329,6 +367,37 @@ namespace gui
         } break;
       }
       return 0;
+    }
+
+
+    virtual Widget* HitTest(int x, int y) override
+    {
+      if (!IsLayoutInfoValid(m_info))
+        return NULL;
+
+      Widget* hit = NULL;
+
+      if (x > m_info.x && x < m_info.x + m_info.width &&
+          y > m_info.y && y < m_info.y + m_info.height)
+      {
+        hit = this;
+      }
+
+      
+
+      Widget* w = NULL;
+      x -= m_info.x;
+      y -= m_info.y;
+      for (ChildNode node: m_children)
+      {
+        if (IsLayoutInfoValid(node.layout))
+        {
+          w = node.widget->HitTest(x, y);
+          if (w) break;
+        }
+      }
+
+      return w ? w : hit;
     }
 
 
@@ -413,7 +482,7 @@ namespace gui
       }
     }
 
-    virtual void Draw(RenderContext* context) override
+    virtual void Draw(RenderContext* context, InteractionContext interaction_context) override
     {
       logger::Debug("HorizontalContainer::Draw");
       if (!IsLayoutInfoValid(m_info)) return;
@@ -430,7 +499,7 @@ namespace gui
       context->render_target->SetTransform(my_translation);
       for (ChildNode& node : m_children)
       {
-        node.widget->Draw(context);
+        node.widget->Draw(context, interaction_context);
       }
       context->render_target->SetTransform(parent_translation);
 
@@ -463,6 +532,34 @@ namespace gui
         } break;
       }
       return 0;
+    }
+
+    virtual Widget* HitTest(int x, int y) override
+    {
+      if (!IsLayoutInfoValid(m_info))
+        return NULL;
+
+      Widget* hit = NULL;
+
+      if (x > m_info.x && x < m_info.x + m_info.width &&
+          y > m_info.y && y < m_info.y + m_info.height)
+      {
+        hit = this;
+      }
+
+      Widget* w = NULL;
+      x -= m_info.x;
+      y -= m_info.y;
+      for (ChildNode node: m_children)
+      {
+        if (IsLayoutInfoValid(node.layout))
+        {
+          w = node.widget->HitTest(x, y);
+          if (w) break;
+        }
+      }
+
+      return w ? w : hit;
     }
 
 

@@ -17,6 +17,7 @@
 #include <optional>
 #include <cmath>
 #include <cassert>
+#include <array>
 
 
 namespace gui
@@ -27,6 +28,14 @@ namespace gui
     (*i)->Release();
     (*i) = 0;
   }
+
+
+  D2D1_COLOR_F btn_bg_default = D2D1::ColorF(0.3, 0.3, 0.3, 1.0);
+  D2D1_COLOR_F btn_fg_default = D2D1::ColorF(0.0, 0.0, 0.0, 1.0);
+  D2D1_COLOR_F btn_bg_hot     = D2D1::ColorF(0.5, 0.5, 0.5, 1.0);
+  D2D1_COLOR_F btn_bg_click     = D2D1::ColorF(0.4, 0.4, 0.6, 1.0);
+  D2D1_COLOR_F textbox_bg_default = D2D1::ColorF(1.0, 1.0, 1.0, 1.0);
+  D2D1_COLOR_F textbox_fg_default = D2D1::ColorF(0.0, 0.0, 0.0, 1.0);
 
   struct WidgetSize
   {
@@ -64,7 +73,11 @@ namespace gui
   struct Widget;
   struct InteractionContext
   {
-    Widget* hot = NULL;
+    Widget* active = NULL;
+    Widget* about_to_active = NULL;
+    Widget* hot = {};
+
+    std::vector<char> keys_pressed = {};
   };
 
 
@@ -152,7 +165,11 @@ namespace gui
 
       ID2D1SolidColorBrush* brush;
       HRESULT hr = S_OK;
-      if (interaction_context.hot == this)
+      if (interaction_context.active == this)
+      {
+        hr = context->render_target->CreateSolidColorBrush(D2D1::ColorF(1.0, 0.0, 0.0, 1.0), &brush);
+      }
+      else if (interaction_context.hot == this)
       {
         hr = context->render_target->CreateSolidColorBrush(m_highlight_color, &brush);
       }
@@ -563,6 +580,185 @@ namespace gui
     }
 
 
+  };
+
+  struct Button: public Rectangle 
+  {
+    std::wstring text;
+    D2D1_COLOR_F fg = btn_fg_default;
+    D2D1_COLOR_F bg = btn_bg_default;
+
+    virtual ~Button()
+    {
+    }
+
+    Button(WidgetSize p_width, WidgetSize p_height, D2D1_COLOR_F p_color, std::wstring txt)
+    : Rectangle(p_width, p_height, p_color)
+    {
+      text = txt;
+    }
+
+    virtual void Draw(RenderContext* context, InteractionContext interaction_context) override
+    {
+      logger::Debug("Button::Draw");
+      if (!m_info)
+      {
+        logger::Error("Call draw without layout");
+        return;
+      }
+      LayoutInfo& layout = *m_info;
+
+      ID2D1SolidColorBrush* brush;
+      HRESULT hr = S_OK;
+      if (interaction_context.about_to_active == this)
+      {
+        hr = context->render_target->CreateSolidColorBrush(btn_bg_click, &brush);
+      }
+      else if (interaction_context.hot == this)
+      {
+        hr = context->render_target->CreateSolidColorBrush(btn_bg_hot, &brush);
+      }
+      else
+      {
+        hr = context->render_target->CreateSolidColorBrush(btn_bg_default, &brush);
+      }
+
+      if (FAILED(hr)) return;
+
+      ID2D1SolidColorBrush* text_brush = NULL;
+      hr = context->render_target->CreateSolidColorBrush(
+        fg,
+        &text_brush);
+      if (FAILED(hr)) return;
+
+      D2D1_RECT_F rec = D2D1::RectF(
+        0, 0,
+        layout.width, layout.height);
+
+
+      D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(layout.x, layout.y);
+
+      D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+
+      context->render_target->GetTransform(&parent_translation);
+
+      my_translation = parent_translation * my_translation;
+
+      context->render_target->SetTransform(my_translation);
+
+      context->render_target->FillRectangle(
+        rec,
+        brush
+      );
+      context->render_target->DrawText(
+        text.c_str(),
+        text.size(),
+        context->text_format,
+        rec,
+        text_brush);
+
+      context->render_target->SetTransform(parent_translation);
+
+      SafeRelease(&brush);
+      SafeRelease(&text_brush);
+    }
+  };
+
+  struct TextBox: public Rectangle 
+  {
+    std::wstring text;
+
+    virtual ~TextBox()
+    {
+    }
+
+    TextBox(WidgetSize p_width, WidgetSize p_height, D2D1_COLOR_F p_color)
+    : Rectangle(p_width, p_height, p_color),
+      text()
+    {
+    }
+
+    virtual void Draw(RenderContext* context, InteractionContext interaction_context) override
+    {
+      logger::Debug("TextBox::Draw");
+      if (!m_info)
+      {
+        logger::Error("Call draw without layout");
+        return;
+      }
+      LayoutInfo& layout = *m_info;
+
+      for (char c : interaction_context.keys_pressed)
+      {
+        text.push_back((wchar_t) c);
+      }
+
+
+      ID2D1SolidColorBrush* brush;
+      HRESULT hr = S_OK;
+
+      hr = context->render_target->CreateSolidColorBrush(textbox_bg_default, &brush);
+
+      if (FAILED(hr)) return;
+
+      ID2D1SolidColorBrush* text_brush = NULL;
+      hr = context->render_target->CreateSolidColorBrush(
+        textbox_fg_default,
+        &text_brush);
+      if (FAILED(hr)) return;
+
+      D2D1_RECT_F rec = D2D1::RectF(
+        0, 0,
+        layout.width, layout.height);
+
+
+      D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(layout.x, layout.y);
+
+      D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+
+      context->render_target->GetTransform(&parent_translation);
+
+      my_translation = parent_translation * my_translation;
+
+      context->render_target->SetTransform(my_translation);
+
+      context->render_target->FillRectangle(
+        rec,
+        brush
+      );
+
+      static unsigned long n = 0;
+
+      std::wstring tmp_text = text;
+
+      if (interaction_context.active == this)
+      {
+        if (interaction_context.keys_pressed.empty())
+        {
+          n++;
+        }
+        else
+        {
+          n = 0;
+        }
+        if (n % 60 < 30)
+        {
+          tmp_text += '_';
+        }
+      }
+
+      context->render_target->DrawText(
+        tmp_text.c_str(),
+        tmp_text.size(),
+        context->text_format,
+        rec,
+        text_brush);
+
+      context->render_target->SetTransform(parent_translation);
+
+      SafeRelease(&brush);
+      SafeRelease(&text_brush);
+    }
   };
 
 

@@ -11,6 +11,7 @@
 #include <set>
 #include <chrono>
 #include <optional>
+#include <thread>
 
 namespace logger
 {
@@ -308,10 +309,11 @@ public:
   {
     m_layout = new gui::VerticalContainer();
     auto layout = dynamic_cast<gui::VerticalContainer*>(m_layout);
-    layout->PushBack(new gui::Rectangle (
+    layout->PushBack(new gui::Button (
       { gui::WidgetSize::Type::Fixed, 100}, 
       { gui::WidgetSize::Type::Fixed, 100},
-      D2D1::ColorF(1.0, 0.2, 0.8, 1.0)));
+      D2D1::ColorF(1.0, 0.2, 0.8, 1.0),
+      L"Click me"));
 
     auto horizontal_items = new gui::HorizontalContainer();
 
@@ -338,9 +340,9 @@ public:
 
     layout->PushBack(horizontal_items);
 
-    layout->PushBack(new gui::Rectangle (
+    layout->PushBack(new gui::TextBox (
       { gui::WidgetSize::Type::Percent, 100},
-      { gui::WidgetSize::Type::Fixed, 30},
+      { gui::WidgetSize::Type::Percent, 70},
       D2D1::ColorF(0.8, 0.8, 0.8, 1.0)));
 
   }
@@ -418,17 +420,28 @@ public:
         int mouse_x = LOWORD(lparam);
         int mouse_y = HIWORD(lparam);
 
-        OnMouseEvent(mouse_x, mouse_y);
+        OnMouseHover(mouse_x, mouse_y);
         return 0;
       } break;
       case WM_LBUTTONDOWN:
       {
-        printf("Button down\n");
+        int mouse_x = LOWORD(lparam);
+        int mouse_y = HIWORD(lparam);
+
+        OnMouseDown(mouse_x, mouse_y);
         return 0;
       } break;
       case WM_LBUTTONUP:
       {
-        printf("Button up\n");
+        int mouse_x = LOWORD(lparam);
+        int mouse_y = HIWORD(lparam);
+
+        OnMouseUp(mouse_x, mouse_y);
+        return 0;
+      } break;
+      case WM_CHAR:
+      {
+        OnKeyboartEvent(wparam);
         return 0;
       } break;
       default:
@@ -452,6 +465,7 @@ public:
     while (m_running)
     {
       IntervalTimePoint start_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
+      m_interaction_context.keys_pressed.clear();
       BOOL r = 0;
       while ((r = PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE)) != 0)
       {
@@ -486,7 +500,7 @@ public:
     logger::Debug("Hightlight widget is %p", m_interaction_context.hot);
   }
 
-  void OnMouseEvent(int x, int y)
+  void OnMouseHover(int x, int y)
   {
     if (!m_layout)
       return;
@@ -501,6 +515,49 @@ public:
     {
       m_interaction_context.hot = NULL;
     }
+  }
+
+  void OnMouseDown(int x, int y)
+  {
+    if (!m_layout)
+      return;
+    
+    gui::Widget* w = m_layout->HitTest(x, y);
+
+    if (w)
+    {
+      m_interaction_context.about_to_active = w;
+    }
+    else
+    {
+      m_interaction_context.about_to_active = NULL;
+    }
+  }
+
+  void OnMouseUp(int x, int y)
+  {
+    if (!m_layout)
+      return;
+    
+    gui::Widget* w = m_layout->HitTest(x, y);
+
+    if (w)
+    {
+      m_interaction_context.about_to_active = w;
+      if (w == m_interaction_context.about_to_active)
+      {
+        m_interaction_context.active = w;
+      }
+    }
+    m_interaction_context.about_to_active = NULL;
+  }
+
+  void OnKeyboartEvent(char c)
+  {
+    if (!m_layout)
+      return;
+    
+    m_interaction_context.keys_pressed.push_back(c);
   }
 
   static gui::RenderContext CreateContext(MainWindow* m)

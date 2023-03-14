@@ -20,6 +20,24 @@
 #include <array>
 
 
+template<typename T>
+struct MatrixBase
+{
+  T data_[4][4] = {};
+
+};
+
+template<typename T>
+struct Point : MatrixBase<T>
+{
+  Point()
+  {
+  };
+};
+
+
+
+
 namespace gui
 {
   template<typename Interface>

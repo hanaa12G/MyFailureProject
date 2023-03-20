@@ -75,22 +75,22 @@ namespace platform
         0, 0,
         m_layout.width, m_layout.height);
 
-      // D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(m_layout.x, m_layout.y);
+      D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(m_layout.x, m_layout.y);
 
-      // D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+      D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
 
-      // render_context->render_target->GetTransform(&parent_translation);
+      render_context->render_target->GetTransform(&parent_translation);
 
-      // my_translation = parent_translation * my_translation;
+      my_translation = parent_translation * my_translation;
 
-      // render_context->render_target->SetTransform(my_translation);
+      render_context->render_target->SetTransform(my_translation);
 
       render_context->render_target->FillRectangle(
         rec,
         brush
       );
 
-      // render_context->render_target->SetTransform(parent_translation);
+      render_context->render_target->SetTransform(parent_translation);
 
       SafeRelease(&brush);
     }
@@ -293,6 +293,34 @@ namespace platform
     }
   };
 
+  struct PlatformLayers : public application::gui::Layers
+  {
+    virtual void Draw(RenderContext* render_context, application::gui::InteractionContext interaction_context) override
+    {
+      logger::Debug("Layers::Draw");
+      if (!IsLayoutInfoValid(m_layout))
+      {
+        logger::Error("Call draw without layout");
+      }
+
+      D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(m_layout.x, m_layout.y);
+      D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+      render_context->render_target->GetTransform(&parent_translation);
+
+      my_translation = parent_translation * my_translation;
+
+      render_context->render_target->SetTransform(my_translation);
+
+      int d = 0;
+      for (auto it = m_layers.begin(); it != m_layers.end(); ++it)
+      {
+        logger::Debug("Draw layer %d", d++);
+        it->second->Draw(render_context, interaction_context);
+      }
+      render_context->render_target->SetTransform(parent_translation);
+    }
+  };
+
   application::gui::Widget*
   NewWidget(int type)
   {
@@ -318,6 +346,10 @@ namespace platform
       {
         return new PlatformTextBox();
       } break;
+      case application::gui::WidgetType::LayersType:
+      {
+        return new PlatformLayers();
+      } break;
       default:
       {
         std::unreachable();
@@ -326,16 +358,22 @@ namespace platform
   }
 
 
-  void WriteFile(std::string filename, std::wstring content)
+  bool WriteFile(std::string filename, std::wstring content)
   {
+    logger::Debug("I'm writting");
     std::wfstream f(filename, std::ios::out | std::ios::trunc);
     if (!f)
     {
       logger::Error("Cant write to file");
-      return;
+      return false;
     }
 
     f << content;
+
+
+    f.flush();
+    if (f) return true;
+    return false;
   }
 } // namespace application
 

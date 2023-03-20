@@ -5,6 +5,8 @@
 #include <vector>
 #include "logger.hh"
 #include "platform.hh"
+#include <functional>
+#include <map>
 
 namespace application
 {
@@ -18,7 +20,8 @@ namespace gui
     VerticalContainerType,
     HorizontalContainerType,
     ButtonType,
-    TextBoxType
+    TextBoxType,
+    LayersType
   };
 
   struct Color
@@ -544,6 +547,100 @@ namespace gui
   };
 
 
+  struct Layers : public Widget
+  {
+    std::map<int, Widget*> m_layers;
+    LayoutInfo m_layout;
+    WidgetSize m_width;
+    WidgetSize m_height;
+
+
+    virtual void Layout(LayoutConstraint const& c)
+    {
+      LayoutInfo info = {};
+      info.x = c.x;
+      info.y = c.y;
+      info.width = 0;
+      info.height = 0;
+
+      int x = 0;
+      int y = 0;
+
+      info.width = FindMaxSize(m_width, c.max_width);
+      info.height = FindMaxSize(m_height, c.max_height);
+
+      LayoutConstraint layer_constraint = {
+        .max_width = info.width,
+        .max_height = info.height,
+        .x = c.x,
+        .y = c.y
+      };
+
+      for (auto i = m_layers.begin(); i != m_layers.end(); ++i)
+      {
+        i->second->Layout(layer_constraint);
+      }
+
+      logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+      m_layout = info;
+    }
+
+    LayoutInfo& GetLayout() override
+    {
+      return m_layout;
+    }
+
+    void SetLayer(int layer, Widget* w)
+    {
+      m_layers[layer] = w;
+    }
+
+    Widget* HitTest(int x, int y) override
+    {
+      if (m_layers.count(1) != 0)
+      {
+        return m_layers[1]->HitTest(x, y);
+      }
+      if (m_layers.count(0) != 0)
+      {
+        return m_layers[0]->HitTest(x, y);
+      }
+
+      return NULL;
+    }
+
+    int FindMaxSize(WidgetSize size, int max_size)
+    {
+      switch (size.type)
+      {
+        case WidgetSize::Type::Undefined:
+        {
+          return max_size;
+        } break;
+        case WidgetSize::Type::Ratio:
+        {
+          return max_size * size.value;
+        } break;
+        case WidgetSize::Type::Percent:
+        {
+          return max_size * size.value / 100;
+        } break;
+        case WidgetSize::Type::Fixed:
+        {
+          return size.value > max_size ? max_size : size.value;
+        } break;
+        default:
+        {
+          std::unreachable();
+        } break;
+      }
+      return 0;
+    }
+
+  };
+
+
   enum MouseState
   {
     MouseDown,
@@ -571,7 +668,8 @@ namespace gui
     void ProcessEvent(UserInput*);
     void Render(LayoutConstraint*, platform::RenderContext*);
 
-    void SaveToFile(std::wstring const& content);
+    void SaveToFile(std::wstring const& content, std::function<void()>);
+    void SaveFileSuccessfullyCallback();
   };
 
 } // namespace gui

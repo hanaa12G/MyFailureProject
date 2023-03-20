@@ -1,7 +1,7 @@
 #include "application.hh"
 
 #include <cassert>
-
+#include <functional>
 
 
 namespace application
@@ -36,6 +36,18 @@ namespace gui
       }
     }
 
+    Layers* layers_ptr = dynamic_cast<Layers*>(root_widget);
+    if (layers_ptr)
+    {
+      for (auto it = layers_ptr->m_layers.begin();
+           it != layers_ptr->m_layers.end();
+           ++it)
+      {
+        ret = FindId(it->second, id);
+        if (ret) return ret;
+      }
+    }
+
     return NULL;
   }
 
@@ -46,9 +58,14 @@ namespace gui
 
   void Application::InitLayout()
   {
-    m_widget = platform::NewWidget(WidgetType::VerticalContainerType);
 
-    auto vertical_container = dynamic_cast<VerticalContainer*>(m_widget);
+    m_widget = platform::NewWidget(WidgetType::LayersType);
+    
+    auto layers = dynamic_cast<Layers*>(m_widget);
+    assert(layers);
+    layers->SetId("Layers");
+
+    auto vertical_container = dynamic_cast<VerticalContainer*>(platform::NewWidget(WidgetType::VerticalContainerType));
 
     assert(vertical_container);
     vertical_container->SetId("WindowLayout");
@@ -87,6 +104,7 @@ namespace gui
     vertical_container->PushBack(textbox);
 
 
+    layers->SetLayer(0, vertical_container);
   }
 
   void Application::ProcessEvent(UserInput* input)
@@ -107,6 +125,7 @@ namespace gui
     if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseUp)
     {
       m_interaction_context.active = interacting_widget;
+      printf("-----------------------------%s", m_interaction_context.active->GetId().c_str());
     }
     else if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseDown)
     {
@@ -114,16 +133,49 @@ namespace gui
     }
 
 
+    // NOTE (hanasou): Only process event at frame of interaction, since interaction_context
+    // is persist between frame that can cause calling process event multiple times
+
     if (interacting_widget->GetId() == "SaveButton" && m_interaction_context.active == interacting_widget)
     {
       TextBox* textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
 
-      if (!textbox) return;
+      if (!textbox) 
+      {
+        return;
+      }
 
       std::wstring const& content = textbox->GetText();
 
-      SaveToFile(content);
+      SaveToFile(content, std::bind(SaveFileSuccessfullyCallback, this));
     }
+
+    if (interacting_widget->GetId() == "OkTextBox" && m_interaction_context.active == interacting_widget)
+    {
+      auto layers = dynamic_cast<Layers*>(m_widget);
+      assert(layers);
+      layers->m_layers.erase(1);
+    }
+  }
+
+  void Application::SaveFileSuccessfullyCallback()
+  {
+    logger::Info("OKOKOK");
+
+    auto ok_textbox = dynamic_cast<TextBox*>(platform::NewWidget(WidgetType::TextBoxType));
+    assert(ok_textbox);
+
+    ok_textbox->SetId("OkTextBox");
+    ok_textbox->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1));
+    ok_textbox->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1));
+
+    ok_textbox->SetColor(Color(1.0, 0.0, 0.0, 1.0));
+    ok_textbox->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+    ok_textbox->SetActiveColor(Color(1.0, 0.0, 0.0, 1.0));
+
+    auto layers = dynamic_cast<Layers*>(m_widget);
+    assert(layers);
+    layers->SetLayer(1, ok_textbox);
   }
 
   void Application::Render(LayoutConstraint* constraint, platform::RenderContext* render_context)
@@ -136,9 +188,10 @@ namespace gui
   }
 
 
-  void Application::SaveToFile(std::wstring const& content)
+  void Application::SaveToFile(std::wstring const& content, std::function<void()> callback) 
   {
-    platform::WriteFile("test.txt", content);
+    if (platform::WriteFile("test.txt", content))
+      callback();
   }
 
 } // namespace gui

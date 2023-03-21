@@ -16,6 +16,7 @@ namespace gui
 
   enum WidgetType
   {
+    InvalidType,
     RectangleType,
     VerticalContainerType,
     HorizontalContainerType,
@@ -105,8 +106,14 @@ namespace gui
       m_id = id;
     }
 
+    virtual WidgetType GetType()
+    {
+      return type;
+    }
+
 
     std::string m_id;
+    WidgetType type;
   };
 
 
@@ -116,6 +123,11 @@ namespace gui
     WidgetSize m_height = WidgetSize();
     Color m_bg_default_color = {};
     Color m_bg_active_color = {};
+
+    Rectangle()
+    {
+      m_type = WigetType::RectangleType:
+    }
 
     LayoutInfo m_layout;
 
@@ -223,6 +235,11 @@ namespace gui
       {
         delete w;
       }
+    }
+
+    VerticalContainer()
+    {
+      m_type = WidgetType::VerticalContainerType;
     }
 
     void PushBack(Widget* w)
@@ -361,6 +378,11 @@ namespace gui
       }
     }
 
+    HorizontalContainer()
+    {
+      m_type = WidgetType::HorizontalContainerType;
+    }
+
     void SetWidth(WidgetSize w)
     {
       m_width = w;
@@ -483,6 +505,11 @@ namespace gui
     Color m_fg_default_color;
     Color m_bg_active_color;
     Color m_fg_active_color;
+
+    Button()
+    {
+      m_type = WidgetType::ButtonType;
+    }
     
     void SetColor(Color c)
     {
@@ -523,6 +550,11 @@ namespace gui
     std::wstring m_text;
 
     Color m_fg_default_color;
+
+    TextBox()
+    {
+      m_type = WidgetType::TextBoxType;
+    }
 
     void SetColor(Color c)
     {
@@ -568,6 +600,11 @@ namespace gui
     LayoutInfo m_layout;
     WidgetSize m_width;
     WidgetSize m_height;
+
+    Layers()
+    {
+      m_type = WidgetType::LayersType;
+    }
 
 
     virtual void Layout(LayoutConstraint const& c)
@@ -660,6 +697,36 @@ namespace gui
   {
     MouseDown,
     MouseUp
+  };
+
+
+  struct KeyboardEvent
+  {
+    char key_press;
+    int  modifier;
+  };
+
+  struct MouseEvent
+  {
+    int x;
+    int y;
+    int state;
+    int hold_duration;
+  };
+
+  struct UserEvent
+  {
+    enum Type {
+      KeyboardEventType,
+      MouseEventType,
+    };
+    Type type;
+
+    union {
+      KeyboardEvent keyboard_event;
+      WheelEvent    wheel_event;
+    }
+
   };
 
   struct UserInput

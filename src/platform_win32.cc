@@ -294,12 +294,22 @@ namespace platform
         }
       }
 
-      render_context->render_target->DrawText(
+      IDWriteTextLayout* layout;
+
+      hr = render_context->dwrite_factory->CreateTextLayout(
         tmp_text.c_str(),
         tmp_text.size(),
         m_text_format,
-        rec,
+        m_layout.width,
+        m_layout.height,
+        &layout);
+      if (FAILED(hr)) return;
+
+      render_context->render_target->DrawTextLayout(
+        D2D1::Point2F(0, 0),
+        layout,
         text_brush);
+
 
       render_context->render_target->SetTransform(parent_translation);
 
@@ -727,6 +737,11 @@ public:
         OnKeyboartEvent(wparam);
         return 0;
       } break;
+      case WM_MOUSEWHEEL:
+      {
+        OnMouseWheel(wparam, lparam);
+        return 0;
+      } break;
       default:
       {
         return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -812,6 +827,10 @@ public:
   void OnKeyboartEvent(char c)
   {
     m_user_input.keys_pressed.push_back(c);
+  }
+
+  void OnMouseWheel(DWORD wparam, LWORD lparam)
+  {
   }
 
   static platform::RenderContext CreateContext(MainWindow* m)

@@ -134,6 +134,25 @@ namespace gui
     layers->SetLayer(0, vertical_container);
   }
 
+  void Application::ProcessEvent2(UserEvent* event)
+  {
+    if (event->type == UserEvent::Type::MouseEventType)
+    {
+      MouseEvent e = event->mouse_event;
+    }
+    else if (event->type == UserEvent::Type::KeyboardEventType)
+    {
+      KeyboardEvent e = event->keyboard_event;
+      if (!interaction_context->active)
+        return;
+
+      if (e->GetType() == WidgetType::TextBoxType)
+      {
+      }
+    }
+    else assert(false);
+  }
+
   void Application::ProcessEvent(UserInput* input)
   {
     Widget* interacting_widget = NULL;
@@ -157,6 +176,10 @@ namespace gui
     else if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseDown)
     {
       m_interaction_context.about_to_active = interacting_widget;
+    }
+    else if (input->mouse_half_transitions == 0 && input->mouse_state == MouseSate::MouseUp &&
+      input->mouse_scroll_distance != 0)
+    {
     }
 
 

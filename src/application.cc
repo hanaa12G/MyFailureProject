@@ -54,6 +54,9 @@ namespace gui
   Application::Application()
   {
     InitLayout();
+
+
+    LoadFile();
   }
 
   void Application::InitLayout()
@@ -69,39 +72,63 @@ namespace gui
 
     assert(vertical_container);
     vertical_container->SetId("WindowLayout");
-
-
     vertical_container->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+
+
+    auto button_horizontal_list = dynamic_cast<HorizontalContainer*>(
+      platform::NewWidget(WidgetType::HorizontalContainerType));
+    assert(button_horizontal_list);
+    button_horizontal_list->SetId("ButtonArrays");
+    button_horizontal_list->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
+    button_horizontal_list->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 100));
 
     auto button = dynamic_cast<Button*>(platform::NewWidget(WidgetType::ButtonType));
     assert(button);
-
     button->SetId("SaveButton");
-    button->SetWidth(WidgetSize(WidgetSize::Type::Fixed, 100));
-    button->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 100));
-    button->SetText(L"Click to say hello");
-
+    button->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
+    button->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
+    button->SetText(L"Save");
     button->SetColor(Color(1.0, 1.0, 0.0, 1.0));
     button->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
     button->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
     button->SetTextActiveColor(Color(0.0, 0.0, 0.0, 1.0));
+    button_horizontal_list->PushBack(button);
 
+    auto button2 = dynamic_cast<Button*>(platform::NewWidget(WidgetType::ButtonType));
+    assert(button2);
+    button2->SetId("OpenButton");
+    button2->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
+    button2->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
+    button2->SetText(L"Open");
+    button2->SetColor(Color(1.0, 1.0, 0.0, 1.0));
+    button2->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
+    button2->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+    button2->SetTextActiveColor(Color(0.0, 0.0, 0.0, 1.0));
+    button_horizontal_list->PushBack(button2);
 
-    vertical_container->PushBack(button);
+    vertical_container->PushBack(button_horizontal_list);
+
+    auto filename_box = dynamic_cast<TextBox*>(platform::NewWidget(WidgetType::TextBoxType));
+    assert(filename_box);
+    filename_box->SetId("FilenameBox");
+    filename_box->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1));
+    filename_box->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.2));
+    filename_box->SetColor(Color(1.0, 1.0, 1.0, 1.0));
+    filename_box->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+    filename_box->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
+    vertical_container->PushBack(filename_box);
 
     auto textbox = dynamic_cast<TextBox*>(platform::NewWidget(WidgetType::TextBoxType));
     assert(textbox);
-
     textbox->SetId("TextBox");
     textbox->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1));
-    textbox->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1));
-
+    textbox->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.8));
     textbox->SetColor(Color(1.0, 1.0, 1.0, 1.0));
     textbox->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
     textbox->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
-
-
     vertical_container->PushBack(textbox);
+
+
 
 
     layers->SetLayer(0, vertical_container);
@@ -192,6 +219,16 @@ namespace gui
   {
     if (platform::WriteFile("test.txt", content))
       callback();
+  }
+
+  void Application::LoadFile()
+  {
+    std::wstring s = platform::ReadFile("test.txt");
+
+    auto textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
+    if (!textbox) return;
+
+    textbox->SetText(s);
   }
 
 } // namespace gui

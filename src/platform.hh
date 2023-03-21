@@ -16,5 +16,6 @@ namespace platform
   
 
   bool WriteFile(std::string name, std::wstring content);
+  std::wstring ReadFile(std::string name);
 }
 

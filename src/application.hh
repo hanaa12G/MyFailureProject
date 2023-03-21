@@ -134,7 +134,6 @@ namespace gui
     {
       m_width = w;
     }
-
     void SetHeight(WidgetSize w)
     {
       m_height = w;
@@ -362,6 +361,16 @@ namespace gui
       }
     }
 
+    void SetWidth(WidgetSize w)
+    {
+      m_width = w;
+    }
+
+    void SetHeight(WidgetSize w)
+    {
+      m_height = w;
+    }
+
     void PushBack(Widget* w)
     {
       m_children.push_back(w);
@@ -403,6 +412,7 @@ namespace gui
       if (m_height.type != WidgetSize::Type::Fixed)
         info.height = y < info.height ? y : info.height;
       logger::Debug("INFO (HorizontalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+      m_layout = info;
     }
 
     virtual LayoutInfo& GetLayout() override { return m_layout; }
@@ -544,6 +554,11 @@ namespace gui
     {
       return m_text;
     }
+
+    void SetText(std::wstring text)
+    {
+      m_text = text;
+    }
   };
 
 
@@ -670,6 +685,7 @@ namespace gui
 
     void SaveToFile(std::wstring const& content, std::function<void()>);
     void SaveFileSuccessfullyCallback();
+    void LoadFile();
   };
 
 } // namespace gui

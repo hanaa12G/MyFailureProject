@@ -123,8 +123,8 @@ namespace platform
   {
     virtual void Draw(RenderContext* render_context, application::gui::InteractionContext interaction_context) override
     {
-      logger::Debug("HorizontalContainer::Draw");
       if (!IsLayoutInfoValid(m_layout)) return;
+      logger::Debug("HorizontalContainer::Draw");
 
       D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(m_layout.x, m_layout.y);
       D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
@@ -211,8 +211,20 @@ namespace platform
 
   struct PlatformTextBox: public application::gui::TextBox
   {
+    IDWriteTextFormat* m_text_format = NULL;
+
     virtual void Draw(RenderContext* render_context, application::gui::InteractionContext interaction_context) override
     {
+      if (!m_text_format)
+      {
+        InitTextFormat(render_context);
+      }
+      if (!m_text_format)
+      {
+        logger::Error("Can't create text format");
+        return;
+      }
+
       logger::Debug("TextBox::Draw");
       if (!IsLayoutInfoValid(m_layout))
       {
@@ -220,9 +232,12 @@ namespace platform
         return;
       }
 
-      for (char c : interaction_context.keys_pressed)
+      if (interaction_context.active == this)
       {
-        m_text.push_back((wchar_t) c);
+        for (char c : interaction_context.keys_pressed)
+        {
+          m_text.push_back((wchar_t) c);
+        }
       }
 
 
@@ -282,7 +297,7 @@ namespace platform
       render_context->render_target->DrawText(
         tmp_text.c_str(),
         tmp_text.size(),
-        render_context->text_format,
+        m_text_format,
         rec,
         text_brush);
 
@@ -290,6 +305,28 @@ namespace platform
 
       SafeRelease(&brush);
       SafeRelease(&text_brush);
+    }
+
+    void InitTextFormat(RenderContext* render_context)
+    {
+      HRESULT hr = render_context->dwrite_factory->CreateTextFormat(
+        L"Cascadia Code",
+        NULL,
+        DWRITE_FONT_WEIGHT_REGULAR,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        14.0f,
+        L"en-us",
+        &m_text_format);
+      if (FAILED(hr))
+      {
+        logger::Warning("Failed to create text format, will use default\n");
+        m_text_format = render_context->text_format;
+      }
+      else
+      {
+        m_text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+      }
     }
   };
 
@@ -374,6 +411,17 @@ namespace platform
     f.flush();
     if (f) return true;
     return false;
+  }
+
+  std::wstring ReadFile(std::string name)
+  {
+    std::wfstream f(name);
+    if (!f) return {};
+
+    std::wstring s;
+
+    f >> s;
+    return s;
   }
 } // namespace application
 

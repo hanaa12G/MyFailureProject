@@ -176,7 +176,10 @@ namespace gui
 
       SaveToFile(content, std::bind(SaveFileSuccessfullyCallback, this));
     }
-
+    else if (interacting_widget->GetId() == "OpenButton" && m_interaction_context.active == interacting_widget)
+    {
+      LoadFile();
+    }
     if (interacting_widget->GetId() == "OkTextBox" && m_interaction_context.active == interacting_widget)
     {
       auto layers = dynamic_cast<Layers*>(m_widget);
@@ -223,8 +226,15 @@ namespace gui
 
   void Application::LoadFile()
   {
-    std::wstring s = platform::ReadFile("test.txt");
+    auto filename_box = dynamic_cast<TextBox*>(FindId(m_widget, "FilenameBox"));
+    if (!filename_box) return;
 
+    std::wstring filename = filename_box->GetText();
+
+    if (filename.empty()) return;
+
+
+    std::wstring s = platform::ReadFile(filename);
     auto textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
     if (!textbox) return;
 

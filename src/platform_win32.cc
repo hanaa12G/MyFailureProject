@@ -413,15 +413,18 @@ namespace platform
     return false;
   }
 
-  std::wstring ReadFile(std::string name)
+  std::wstring ReadFile(std::wstring name)
   {
-    std::wfstream f(name);
+    char filepath[1000];
+    if (wcstombs(filepath, name.c_str(), sizeof(filepath)) < 0)
+      return {};
+
+    std::wfstream f(filepath);
     if (!f) return {};
+    std::wstringstream buffer;
+    buffer << f.rdbuf();
 
-    std::wstring s;
-
-    f >> s;
-    return s;
+    return buffer.str();
   }
 } // namespace application
 

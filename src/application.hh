@@ -696,7 +696,8 @@ namespace gui
   enum MouseState
   {
     Down,
-    Up
+    Up,
+    Move
   };
 
 
@@ -744,11 +745,13 @@ namespace gui
     Widget* m_widget = NULL;
     InteractionContext m_interaction_context;
 
-    MouseEvent m_last_mouse_event;
+    MouseEvent m_last_mouse_event = {
+      .state = MouseState::Up,
+    };
     platform::Timestamp m_last_mouse_down_timestamp;
     platform::Timestamp m_last_mouse_click_timestamp;
     platform::Duration  m_mouse_drag_duration;
-    platform::Duration  m_mouse_double_click_duration;
+    platform::Duration  m_mouse_double_click_duration {500.0};
 
     Application();
     void InitLayout();

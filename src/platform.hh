@@ -21,9 +21,9 @@ namespace platform
 
 
   using Timestamp = std::chrono::steady_clock::time_point;
-  using Duration  = std::chrono::steady_clock::duration;
+  using Duration  = std::chrono::duration<double, std::milli>;
 
   Timestamp CurrentTimestamp();
-  Duration  DurationFrom(Timestamp); 
+  Duration  DurationFrom(Timestamp, Timestamp); 
 }
 

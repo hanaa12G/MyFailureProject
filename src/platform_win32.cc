@@ -25,11 +25,11 @@ namespace platform
 {
   Timestamp CurrentTimestamp()
   {
-    return {};
+    return std::chrono::steady_clock::now();
   }
-  Duration DurationFrom(Timestamp t)
+  Duration DurationFrom(Timestamp to, Timestamp from)
   {
-    return {};
+    return std::chrono::duration_cast<Duration>(to - from);
   }
   struct RenderContext
   {
@@ -803,6 +803,18 @@ public:
 
   void OnMouseHover(int x, int y)
   {
+    application::gui::MouseEvent e;
+    e.state = application::gui::MouseState::Move;
+    e.x = x;
+    e.y = y;
+    e.timestamp = platform::CurrentTimestamp();
+
+    application::gui::UserEvent event {
+      .type = application::gui::UserEvent::Type::MouseEventType,
+      .mouse_event = e,
+    };
+
+    m_app->ProcessEvent(&event);
   }
 
   void OnMouseDown(int x, int y)

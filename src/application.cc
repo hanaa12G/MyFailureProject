@@ -137,6 +137,7 @@ namespace gui
   void Application::ProcessEvent(UserEvent* event)
   {
     bool mouse_click = false;
+    bool mouse_moving = false;
     bool mouse_dragged = false;
     bool mouse_double_clicked = false;
     bool mouse_down = false;
@@ -151,25 +152,32 @@ namespace gui
       {
         mouse_down = true;
         m_last_mouse_down_timestamp = platform::CurrentTimestamp();
+        m_last_mouse_event = e;
       }
       else if (e.state == MouseState::Up && m_last_mouse_event.state == MouseState::Down)
       {
         // let's check double click
-        if (platform::DurationFrom(m_last_mouse_click_timestamp) < m_mouse_double_click_duration)
+        if (platform::DurationFrom(e.timestamp, m_last_mouse_click_timestamp) < m_mouse_double_click_duration)
         {
           mouse_double_clicked = true;
-        }
-        else if (platform::DurationFrom(m_last_mouse_down_timestamp) > m_mouse_drag_duration)
-        {
-          mouse_dragged = true;
         }
 
         mouse_down = false;
         mouse_click = true;
         m_last_mouse_click_timestamp = platform::CurrentTimestamp();
+        m_last_mouse_event = e;
+      }
+      else if (e.state == MouseState::Move && m_last_mouse_event.state == MouseState::Down)
+      {
+        mouse_moving = true;
+        mouse_down = true;
+        mouse_dragged = true;
+      }
+      else if (e.state == MouseState::Move)
+      {
+        mouse_moving = true;
       }
 
-      m_last_mouse_event = e;
     }
     else if (event->type == UserEvent::Type::KeyboardEventType)
     {
@@ -179,7 +187,7 @@ namespace gui
     // mouse_click: check duration < hold_duration
     // mouse_drag: check_duration
     // mouse_double_click: save last click timestamp and check
-    printf("mouse click: %d\n", mouse_click);
+    printf("move: %d, down: %d, click: %d, dclick: %d, drag: %d\n", mouse_moving, mouse_down, mouse_click, mouse_double_clicked, mouse_dragged);
 
   }
 

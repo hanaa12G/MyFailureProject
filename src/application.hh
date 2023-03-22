@@ -108,12 +108,12 @@ namespace gui
 
     virtual WidgetType GetType()
     {
-      return type;
+      return m_type;
     }
 
 
     std::string m_id;
-    WidgetType type;
+    WidgetType m_type;
   };
 
 
@@ -126,7 +126,7 @@ namespace gui
 
     Rectangle()
     {
-      m_type = WigetType::RectangleType:
+      m_type = WidgetType::RectangleType;
     }
 
     LayoutInfo m_layout;
@@ -695,15 +695,15 @@ namespace gui
 
   enum MouseState
   {
-    MouseDown,
-    MouseUp
+    Down,
+    Up
   };
 
 
   struct KeyboardEvent
   {
-    char key_press;
-    int  modifier;
+    int key_press;
+    int modifier;
   };
 
   struct MouseEvent
@@ -711,7 +711,7 @@ namespace gui
     int x;
     int y;
     int state;
-    int hold_duration;
+    platform::Timestamp timestamp;
   };
 
   struct UserEvent
@@ -724,8 +724,8 @@ namespace gui
 
     union {
       KeyboardEvent keyboard_event;
-      WheelEvent    wheel_event;
-    }
+      MouseEvent    mouse_event;
+    };
 
   };
 
@@ -744,10 +744,16 @@ namespace gui
     Widget* m_widget = NULL;
     InteractionContext m_interaction_context;
 
+    MouseEvent m_last_mouse_event;
+    platform::Timestamp m_last_mouse_down_timestamp;
+    platform::Timestamp m_last_mouse_click_timestamp;
+    platform::Duration  m_mouse_drag_duration;
+    platform::Duration  m_mouse_double_click_duration;
+
     Application();
     void InitLayout();
 
-    void ProcessEvent(UserInput*);
+    void ProcessEvent(UserEvent*);
     void Render(LayoutConstraint*, platform::RenderContext*);
 
     void SaveToFile(std::wstring const& content, std::function<void()>);

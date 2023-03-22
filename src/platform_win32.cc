@@ -23,6 +23,14 @@
 
 namespace platform
 {
+  Timestamp CurrentTimestamp()
+  {
+    return {};
+  }
+  Duration DurationFrom(Timestamp t)
+  {
+    return {};
+  }
   struct RenderContext
   {
     ID2D1HwndRenderTarget* render_target = NULL; 
@@ -774,13 +782,6 @@ public:
       }
 
 
-      m_app->ProcessEvent(&m_user_input);
-      m_last_user_input = m_user_input;
-      m_user_input.mouse_half_transitions = 0;
-      m_user_input.keys_pressed.clear();
-
-      logger::Debug("user_input %d %d", m_user_input.mouse_state, m_user_input.mouse_half_transitions);
-
       OnPaint();
 
       IntervalTimePoint end_frame_ts = std::chrono::time_point_cast<Interval>(IntervalClock::now());
@@ -802,34 +803,45 @@ public:
 
   void OnMouseHover(int x, int y)
   {
-    m_user_input.mouse_x = x;
-    m_user_input.mouse_y = y;
   }
 
   void OnMouseDown(int x, int y)
   {
-    if (m_user_input.mouse_state == application::gui::MouseState::MouseUp)
-    {
-      m_user_input.mouse_half_transitions += 1;
-    }
-    m_user_input.mouse_state = application::gui::MouseState::MouseDown;
+    application::gui::MouseEvent e;
+    e.state = application::gui::MouseState::Down;
+    e.x = x;
+    e.y = y;
+    e.timestamp = platform::CurrentTimestamp();
+
+    application::gui::UserEvent event {
+      .type = application::gui::UserEvent::Type::MouseEventType,
+      .mouse_event = e,
+    };
+
+    m_app->ProcessEvent(&event);
   }
 
   void OnMouseUp(int x, int y)
   {
-    if (m_user_input.mouse_state == application::gui::MouseState::MouseDown)
-    {
-      m_user_input.mouse_half_transitions += 1;
-    }
-    m_user_input.mouse_state = application::gui::MouseState::MouseUp;
+    application::gui::MouseEvent e;
+    e.state = application::gui::MouseState::Up;
+    e.x = x;
+    e.y = y;
+    e.timestamp = platform::CurrentTimestamp();
+
+
+    application::gui::UserEvent event {
+      .type = application::gui::UserEvent::Type::MouseEventType,
+      .mouse_event = e,
+    };
+    m_app->ProcessEvent(&event);
   }
 
   void OnKeyboartEvent(char c)
   {
-    m_user_input.keys_pressed.push_back(c);
   }
 
-  void OnMouseWheel(DWORD wparam, LWORD lparam)
+  void OnMouseWheel(DWORD wparam, DWORD lparam)
   {
   }
 

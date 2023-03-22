@@ -134,82 +134,112 @@ namespace gui
     layers->SetLayer(0, vertical_container);
   }
 
-  void Application::ProcessEvent2(UserEvent* event)
+  void Application::ProcessEvent(UserEvent* event)
   {
+    bool mouse_click = false;
+    bool mouse_dragged = false;
+    bool mouse_double_clicked = false;
+    bool mouse_down = false;
+    bool text_event = false;
+    bool shortcut_event = false;
+
     if (event->type == UserEvent::Type::MouseEventType)
     {
-      MouseEvent e = event->mouse_event;
+      MouseEvent e  = event->mouse_event;
+
+      if (e.state == MouseState::Down && m_last_mouse_event.state == MouseState::Up)
+      {
+        mouse_down = true;
+        m_last_mouse_down_timestamp = platform::CurrentTimestamp();
+      }
+      else if (e.state == MouseState::Up && m_last_mouse_event.state == MouseState::Down)
+      {
+        // let's check double click
+        if (platform::DurationFrom(m_last_mouse_click_timestamp) < m_mouse_double_click_duration)
+        {
+          mouse_double_clicked = true;
+        }
+        else if (platform::DurationFrom(m_last_mouse_down_timestamp) > m_mouse_drag_duration)
+        {
+          mouse_dragged = true;
+        }
+
+        mouse_down = false;
+        mouse_click = true;
+        m_last_mouse_click_timestamp = platform::CurrentTimestamp();
+      }
+
+      m_last_mouse_event = e;
     }
     else if (event->type == UserEvent::Type::KeyboardEventType)
     {
       KeyboardEvent e = event->keyboard_event;
-      if (!interaction_context->active)
-        return;
-
-      if (e->GetType() == WidgetType::TextBoxType)
-      {
-      }
     }
-    else assert(false);
+
+    // mouse_click: check duration < hold_duration
+    // mouse_drag: check_duration
+    // mouse_double_click: save last click timestamp and check
+    printf("mouse click: %d\n", mouse_click);
+
   }
 
-  void Application::ProcessEvent(UserInput* input)
-  {
-    Widget* interacting_widget = NULL;
-    if (m_widget)
-    {
-      interacting_widget = m_widget->HitTest(input->mouse_x, input->mouse_y);
-    }
+  // void Application::ProcessEvent(UserInput* input)
+  // {
+  //   Widget* interacting_widget = NULL;
+  //   if (m_widget)
+  //   {
+  //     interacting_widget = m_widget->HitTest(input->mouse_x, input->mouse_y);
+  //   }
 
-    m_interaction_context.hot = interacting_widget;
-    m_interaction_context.keys_pressed = input->keys_pressed;
-
-
-    // Update interaction context, use for drawing
-    if (!interacting_widget) return;
-
-    if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseUp)
-    {
-      m_interaction_context.active = interacting_widget;
-      printf("-----------------------------%s", m_interaction_context.active->GetId().c_str());
-    }
-    else if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseDown)
-    {
-      m_interaction_context.about_to_active = interacting_widget;
-    }
-    else if (input->mouse_half_transitions == 0 && input->mouse_state == MouseSate::MouseUp &&
-      input->mouse_scroll_distance != 0)
-    {
-    }
+  //   m_interaction_context.hot = interacting_widget;
+  //   m_interaction_context.keys_pressed = input->keys_pressed;
 
 
-    // NOTE (hanasou): Only process event at frame of interaction, since interaction_context
-    // is persist between frame that can cause calling process event multiple times
+  //   // Update interaction context, use for drawing
+  //   if (!interacting_widget) return;
 
-    if (interacting_widget->GetId() == "SaveButton" && m_interaction_context.active == interacting_widget)
-    {
-      TextBox* textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
+  //   if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseUp)
+  //   {
+  //     m_interaction_context.active = interacting_widget;
+  //     printf("-----------------------------%s", m_interaction_context.active->GetId().c_str());
+  //   }
+  //   else if (input->mouse_half_transitions == 1 && input->mouse_state == MouseState::MouseDown)
+  //   {
+  //     m_interaction_context.about_to_active = interacting_widget;
+  //   }
+  //   else if (input->mouse_half_transitions == 0 && input->mouse_state == MouseSate::MouseUp &&
+  //     input->mouse_scroll_distance != 0)
+  //   {
+  //   }
 
-      if (!textbox) 
-      {
-        return;
-      }
 
-      std::wstring const& content = textbox->GetText();
+  //   // NOTE (hanasou): Only process event at frame of interaction, since interaction_context
+  //   // is persist between frame that can cause calling process event multiple times
 
-      SaveToFile(content, std::bind(SaveFileSuccessfullyCallback, this));
-    }
-    else if (interacting_widget->GetId() == "OpenButton" && m_interaction_context.active == interacting_widget)
-    {
-      LoadFile();
-    }
-    if (interacting_widget->GetId() == "OkTextBox" && m_interaction_context.active == interacting_widget)
-    {
-      auto layers = dynamic_cast<Layers*>(m_widget);
-      assert(layers);
-      layers->m_layers.erase(1);
-    }
-  }
+  //   if (interacting_widget->GetId() == "SaveButton" && m_interaction_context.active == interacting_widget)
+  //   {
+  //     TextBox* textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
+
+  //     if (!textbox) 
+  //     {
+  //       return;
+  //     }
+
+  //     std::wstring const& content = textbox->GetText();
+
+  //     SaveToFile(content, std::bind(SaveFileSuccessfullyCallback, this));
+  //   }
+  //   else if (interacting_widget->GetId() == "OpenButton" && m_interaction_context.active == interacting_widget)
+  //   {
+  //     LoadFile();
+  //   }
+  //   if (interacting_widget->GetId() == "OkTextBox" && m_interaction_context.active == interacting_widget)
+  //   {
+  //     auto layers = dynamic_cast<Layers*>(m_widget);
+  //     assert(layers);
+  //     layers->m_layers.erase(1);
+  //   }
+  // }
 
   void Application::SaveFileSuccessfullyCallback()
   {

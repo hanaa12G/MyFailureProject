@@ -55,7 +55,6 @@ namespace gui
   {
     InitLayout();
 
-
     LoadFile();
   }
 
@@ -143,7 +142,10 @@ namespace gui
     bool mouse_down = false;
     bool text_event = false;
     bool shortcut_event = false;
+    int  mouse_dragged_dx = 0;
+    int  mouse_dragged_dy = 0;
 
+    Widget* interacting_widget = NULL;
     if (event->type == UserEvent::Type::MouseEventType)
     {
       MouseEvent e  = event->mouse_event;
@@ -166,11 +168,22 @@ namespace gui
         mouse_click = true;
         m_last_mouse_click_timestamp = platform::CurrentTimestamp();
         m_last_mouse_event = e;
+        m_mouse_drag_start_x = 0;
+        m_mouse_drag_start_y = 0;
       }
       else if (e.state == MouseState::Move && m_last_mouse_event.state == MouseState::Down)
       {
+        printf("Event mouse move\n");
         mouse_moving = true;
         mouse_down = true;
+        if(mouse_dragged == false)
+        {
+          m_mouse_drag_start_x = e.x;
+          m_mouse_drag_start_y = e.y;
+          printf("start_x:%d, now_x: %d\n", m_mouse_drag_start_x, e.x);
+          mouse_dragged_dx = e.x - m_mouse_drag_start_x;
+          mouse_dragged_dy = e.y - m_mouse_drag_start_y;
+        }
         mouse_dragged = true;
       }
       else if (e.state == MouseState::Move)
@@ -178,6 +191,7 @@ namespace gui
         mouse_moving = true;
       }
 
+      interacting_widget = m_widget->HitTest(e.x, e.y);
     }
     else if (event->type == UserEvent::Type::KeyboardEventType)
     {
@@ -188,6 +202,40 @@ namespace gui
     // mouse_drag: check_duration
     // mouse_double_click: save last click timestamp and check
     printf("move: %d, down: %d, click: %d, dclick: %d, drag: %d\n", mouse_moving, mouse_down, mouse_click, mouse_double_clicked, mouse_dragged);
+
+    if (mouse_dragged)
+    {
+      m_interaction_context.dragging = interacting_widget;
+    }
+    else
+    {
+      m_interaction_context.dragging = NULL;
+    }
+
+    if (m_interaction_context.dragging)
+    {
+      m_interaction_context.dragging_dx = mouse_dragged_dx;
+      m_interaction_context.dragging_dy = mouse_dragged_dy;
+      printf("%s is dragging, dx = %d, dy=%d\n", m_interaction_context.dragging->GetId().c_str(),
+       m_interaction_context.dragging_dx, m_interaction_context.dragging_dy );
+    }
+
+
+    if ((mouse_click && !mouse_dragged) && interacting_widget) 
+    {
+      if (interacting_widget->GetId() == "SaveButton")
+      {
+        printf("Save button\n");
+      }
+      else if (interacting_widget->GetId() == "OpenButton")
+      {
+        printf("Open button\n");
+      }
+    }
+
+
+
+    
 
   }
 
@@ -273,7 +321,7 @@ namespace gui
   {
     if (m_widget)
     {
-      m_widget->Layout(*constraint);
+      m_widget->Layout(*constraint, m_interaction_context);
       m_widget->Draw(render_context, m_interaction_context);
     }
   }

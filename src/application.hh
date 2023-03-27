@@ -75,9 +75,13 @@ namespace gui
 
   struct InteractionContext
   {
-    Widget* active;
-    Widget* hot;
-    Widget* about_to_active;
+    Widget* active = NULL;
+    Widget* hot = NULL;
+    Widget* about_to_active = NULL;
+    Widget* dragging = NULL;
+
+    int     dragging_dx = 0;
+    int     dragging_dy = 0;
 
     std::vector<wchar_t> keys_pressed;
   };
@@ -92,7 +96,7 @@ namespace gui
   struct Widget
   {
     virtual ~Widget() {}
-    virtual void Layout(LayoutConstraint const&) = 0;
+    virtual void Layout(LayoutConstraint const&, InteractionContext&) = 0;
     virtual void Draw(platform::RenderContext*, InteractionContext) = 0;
     virtual Widget* HitTest(int, int) = 0;
     virtual LayoutInfo& GetLayout() = 0;
@@ -123,6 +127,7 @@ namespace gui
     WidgetSize m_height = WidgetSize();
     Color m_bg_default_color = {};
     Color m_bg_active_color = {};
+    bool  m_accept_dragging = true;
 
     Rectangle()
     {
@@ -151,7 +156,7 @@ namespace gui
       m_height = w;
     }
 
-    virtual void Layout(LayoutConstraint const& c) override
+    virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
     {
       LayoutInfo info = {};
       info.x = c.x;
@@ -160,6 +165,12 @@ namespace gui
 
       info.width = FindFixSize(m_width, c.max_width);
       info.height = FindFixSize(m_height, c.max_height);
+
+      if (interaction_context.dragging == this)
+      {
+        info.x = interaction_context.dragging_dx;
+        info.y = interaction_context.dragging_dy;
+      }
 
       logger::Debug("INFO (Rectangle): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
 
@@ -257,7 +268,7 @@ namespace gui
       m_height = w;
     }
 
-    virtual void Layout(LayoutConstraint const& c) override
+    virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
     {
       LayoutInfo info = {};
       info.x = c.x;
@@ -279,7 +290,7 @@ namespace gui
         child_constraint.x = 0;
         child_constraint.y = y;
 
-        w->Layout(child_constraint);
+        w->Layout(child_constraint, interaction_context);
         LayoutInfo child_layout = w->GetLayout();
 
         x = std::max(x, child_layout.x + child_layout.width);
@@ -398,7 +409,7 @@ namespace gui
       m_children.push_back(w);
     }
 
-    virtual void Layout(LayoutConstraint const& c) override
+    virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
     {
       LayoutInfo info = {};
       info.x = c.x;
@@ -420,7 +431,7 @@ namespace gui
         child_constraint.x = x;
         child_constraint.y = 0;
 
-        w->Layout(child_constraint);
+        w->Layout(child_constraint, interaction_context);
         LayoutInfo const& child_layout = w->GetLayout();
 
         x = child_layout.x + child_layout.width;
@@ -607,7 +618,7 @@ namespace gui
     }
 
 
-    virtual void Layout(LayoutConstraint const& c)
+    virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
     {
       LayoutInfo info = {};
       info.x = c.x;
@@ -630,7 +641,7 @@ namespace gui
 
       for (auto i = m_layers.begin(); i != m_layers.end(); ++i)
       {
-        i->second->Layout(layer_constraint);
+        i->second->Layout(layer_constraint, interaction_context);
       }
 
       logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
@@ -748,6 +759,8 @@ namespace gui
     MouseEvent m_last_mouse_event = {
       .state = MouseState::Up,
     };
+    int m_mouse_drag_start_x;
+    int m_mouse_drag_start_y;
     platform::Timestamp m_last_mouse_down_timestamp;
     platform::Timestamp m_last_mouse_click_timestamp;
     platform::Duration  m_mouse_drag_duration;

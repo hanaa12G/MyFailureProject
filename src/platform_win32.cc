@@ -640,7 +640,9 @@ public:
       .y = 0
     };
 
+
     m_render_target->BeginDraw();
+    m_render_target->Clear(D2D1::ColorF(D2D1::ColorF::Black));
     m_app->Render(&constraint, &wc);
     m_render_target->EndDraw();
 

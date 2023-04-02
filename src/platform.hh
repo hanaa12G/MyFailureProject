@@ -18,6 +18,9 @@ namespace platform
   bool WriteFile(std::string name, std::wstring content);
   std::wstring ReadFile(std::wstring name);
 
+  std::vector<std::string> ReadPath(std::string);
+  std::string CurrentPath();
+
 
 
   using Timestamp = std::chrono::steady_clock::time_point;

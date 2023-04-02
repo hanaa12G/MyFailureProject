@@ -16,6 +16,7 @@
 #include <optional>
 #include <fstream>
 #include <thread>
+#include <filesystem>
 #include "logger.hh"
 #include "platform.hh"
 #include "application.hh"
@@ -31,6 +32,24 @@ namespace platform
   {
     return std::chrono::duration_cast<Duration>(to - from);
   }
+
+  std::vector<std::string> ReadPath(std::string path)
+  {
+      namespace fs = std::filesystem;
+
+      fs::path p{ path };
+      if (fs::is_directory(p))
+          return {};
+      fs::directory_iterator di{ p };
+      std::vector<std::string> out;
+      for (auto const& item : di)
+      {
+          out.push_back(item.path().filename().string());
+      }
+      return out;
+  }
+
+
   struct RenderContext
   {
     ID2D1HwndRenderTarget* render_target = NULL; 
@@ -118,8 +137,9 @@ namespace platform
       my_translation = parent_translation * my_translation;
 
       render_context->render_target->SetTransform(my_translation);
-      for (Widget* widget : m_children)
+      for (auto it = m_children.begin(); it != m_children.end(); ++it)
       {
+          Widget* widget = it->get();
         widget->Draw(render_context, interaction_context);
       }
       render_context->render_target->SetTransform(parent_translation);
@@ -376,34 +396,46 @@ namespace platform
     }
   };
 
+  struct PlatformFileSelector : public application::gui::FileSelector
+  {
+      void Draw(RenderContext* render_context, application::gui::InteractionContext interaction_context) override
+      {
+      }
+
+  };
+
   application::gui::Widget*
   NewWidget(int type)
   {
-    switch (type)
-    {
+      switch (type)
+      {
       case application::gui::WidgetType::RectangleType:
       {
-        return new PlatformRectangle();
+          return new PlatformRectangle();
       } break;
       case application::gui::WidgetType::VerticalContainerType:
       {
-        return new PlatformVerticalContainer();
+          return new PlatformVerticalContainer();
       } break;
       case application::gui::WidgetType::HorizontalContainerType:
       {
-        return new PlatformHorizontalContainer();
+          return new PlatformHorizontalContainer();
       } break;
       case application::gui::WidgetType::ButtonType:
       {
-        return new PlatformButton();
+          return new PlatformButton();
       } break;
       case application::gui::WidgetType::TextBoxType:
       {
-        return new PlatformTextBox();
+          return new PlatformTextBox();
       } break;
       case application::gui::WidgetType::LayersType:
       {
-        return new PlatformLayers();
+          return new PlatformLayers();
+      } break;
+      case application::gui::WidgetType::FileSelectorType:
+      {
+          return new PlatformFileSelector();
       } break;
       default:
       {

@@ -17,6 +17,7 @@
 #include <fstream>
 #include <thread>
 #include <filesystem>
+#include <codecvt>
 #include "logger.hh"
 #include "platform.hh"
 #include "application.hh"
@@ -38,7 +39,7 @@ namespace platform
       namespace fs = std::filesystem;
 
       fs::path p{ path };
-      if (fs::is_directory(p))
+      if (!fs::is_directory(p))
           return {};
       fs::directory_iterator di{ p };
       std::vector<std::string> out;
@@ -49,6 +50,11 @@ namespace platform
       return out;
   }
 
+
+  std::string CurrentPath()
+  {
+      return std::filesystem::current_path().string();
+  }
 
   struct RenderContext
   {
@@ -223,9 +229,13 @@ namespace platform
         rec,
         brush
       );
+
+      std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+
+      auto text = converter.from_bytes(m_text);
       render_context->render_target->DrawText(
-        m_text.c_str(),
-        m_text.size(),
+        text.c_str(),
+        text.size(),
         render_context->text_format,
         rec,
         text_brush);
@@ -304,7 +314,7 @@ namespace platform
 
       static unsigned long n = 0;
 
-      std::wstring tmp_text = m_text;
+      std::string tmp_text = m_text;
 
       if (interaction_context.active == this)
       {
@@ -324,9 +334,13 @@ namespace platform
 
       IDWriteTextLayout* layout;
 
+
+      std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+
+      auto text = converter.from_bytes(tmp_text);
       hr = render_context->dwrite_factory->CreateTextLayout(
-        tmp_text.c_str(),
-        tmp_text.size(),
+        text.c_str(),
+        text.size(),
         m_text_format,
         m_layout.width,
         m_layout.height,
@@ -400,8 +414,22 @@ namespace platform
   {
       void Draw(RenderContext* render_context, application::gui::InteractionContext interaction_context) override
       {
-      }
+        logger::Debug("FileSelector::Draw");
+        if (!IsLayoutInfoValid(m_layout)) return;
 
+        D2D1_MATRIX_3X2_F my_translation = D2D1::Matrix3x2F::Translation(m_layout.x, m_layout.y);
+        D2D1_MATRIX_3X2_F parent_translation = D2D1::Matrix3x2F::Identity();
+        render_context->render_target->GetTransform(&parent_translation);
+
+        my_translation = parent_translation * my_translation;
+
+        render_context->render_target->SetTransform(my_translation);
+
+        m_container->Draw(render_context, interaction_context);
+        
+        render_context->render_target->SetTransform(parent_translation);
+
+      }
   };
 
   application::gui::Widget*
@@ -445,7 +473,7 @@ namespace platform
   }
 
 
-  bool WriteFile(std::string filename, std::wstring content)
+  bool WriteFile(std::string filename, std::string content)
   {
     logger::Debug("I'm writting");
     std::wfstream f(filename, std::ios::out | std::ios::trunc);
@@ -455,7 +483,10 @@ namespace platform
       return false;
     }
 
-    f << content;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+
+    auto text = converter.from_bytes(content);
+    f << text;
 
 
     f.flush();
@@ -463,15 +494,13 @@ namespace platform
     return false;
   }
 
-  std::wstring ReadFile(std::wstring name)
+  std::string ReadFile(std::string name)
   {
     char filepath[1000];
-    if (wcstombs(filepath, name.c_str(), sizeof(filepath)) < 0)
-      return {};
 
-    std::wfstream f(filepath);
+    std::fstream f(filepath);
     if (!f) return {};
-    std::wstringstream buffer;
+    std::stringstream buffer;
     buffer << f.rdbuf();
 
     return buffer.str();

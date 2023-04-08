@@ -12,9 +12,9 @@
 
 namespace application
 {
-	inline std::wstring ToWString(std::string f)
+	inline std::string Tostring(std::string f)
 	{
-		std::wstring out(f.size(), L'0');
+		std::string out(f.size(), L'0');
 		for (int i = 0; i < f.size(); ++i)
 			out[i] = (wchar_t)f[i];
 		return out;
@@ -532,7 +532,7 @@ namespace application
 
 		struct Button : public Rectangle
 		{
-			std::wstring m_text;
+			std::string m_text;
 			Color m_bg_default_color;
 			Color m_fg_default_color;
 			Color m_bg_active_color;
@@ -573,7 +573,7 @@ namespace application
 			{
 				m_height = w;
 			}
-			void SetText(std::wstring text)
+			void SetText(std::string text)
 			{
 				m_text = text;
 			}
@@ -595,7 +595,7 @@ namespace application
 
 		struct TextBox : public Rectangle
 		{
-			std::wstring m_text;
+			std::string m_text;
 
 			Color m_fg_default_color;
 
@@ -630,12 +630,12 @@ namespace application
 			}
 
 
-			std::wstring const& GetText()
+			std::string const& GetText()
 			{
 				return m_text;
 			}
 
-			void SetText(std::wstring text)
+			void SetText(std::string text)
 			{
 				m_text = text;
 			}
@@ -696,12 +696,21 @@ namespace application
 				m_layers[layer] = w;
 			}
 
+      void PopLayer()
+      {
+        if (m_layers.size() <= 1) return;
+        auto nit = m_layers.begin();
+        nit++;
+        m_layers.erase(nit, m_layers.end());
+      }
+
 			int GetLevel() { return m_layers.rbegin()->first; }
 
 
 			Widget* HitTest(int x, int y) override
 			{
-				if (m_layers.size() > 0)
+				int number_of_layers = m_layers.size();
+				if (number_of_layers > 0)
 				{
 					Widget* hit = m_layers.rbegin()->second->HitTest(x, y);
 					if (hit) return hit;
@@ -756,9 +765,15 @@ namespace application
 			WidgetSize m_height;
 			LayoutInfo m_layout;
 
+      std::function<void(void*, std::string)> m_on_destroyed_fn;
+
 			FileSelector()
 			{
 				m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
+				VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
+				container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.6));
+				container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.6));
+				container.SetId("FileSelector>Container");
 			}
 
 			void SetWidth(WidgetSize size)
@@ -779,17 +794,19 @@ namespace application
 
 					m_current_path = path;
 					m_file_names = ReadPath(m_current_path);
+          std::sort(m_file_names.begin(), m_file_names.end());
 
 					for (auto item : m_file_names)
 					{
 						auto btnw = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
 						auto btn = dynamic_cast<Button*>(btnw.get());
-						btn->SetText(ToWString(item));
+						btn->SetText(item);
+            btn->SetId(item);
 						btn->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
 						btn->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
 						btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
-						btn->SetTextColor(Color(0.0, 0.0, 0.0, 0.0));
-						btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.));
+						btn->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+						btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.0));
 
 						container->PushBack(btnw);
 					}
@@ -799,13 +816,47 @@ namespace application
 
 			void Layout(LayoutConstraint const& layout, InteractionContext& interaction_context) override
 			{
-				auto container = dynamic_cast<VerticalContainer*>(m_container.get());
-				m_container.get()->Layout(layout, interaction_context);
+        m_layout.x = layout.x;
+        m_layout.y = layout.y;
+        m_layout.width = FindFixSize(m_width, layout.max_width);
+        m_layout.height = FindFixSize(m_height, layout.max_height);
+
+
+        // get some space for padding
+        int child_max_width = m_layout.width * 0.6;
+        int child_max_height = m_layout.height * 0.6;
+        int x = (m_layout.width - child_max_width) / 2;
+        int y = (m_layout.height - child_max_height) / 2;
+
+
+
+        LayoutConstraint constraint {
+          .max_width = child_max_width,
+          .max_height = child_max_height,
+          .x = x,
+          .y = y,
+        };
+
+				m_container.get()->Layout(constraint, interaction_context);
 			}
 
-			Widget* HitTest(int, int) override
+			Widget* HitTest(int x, int y) override
 			{
-				return NULL;
+				if (IsLayoutInfoValid(m_layout))
+				{
+					if (x < m_layout.x || x >(m_layout.x + m_layout.width) ||
+						y < m_layout.y || y >(m_layout.y + m_layout.height))
+						return NULL;
+
+					else
+					{
+						x -= m_layout.x;
+						y -= m_layout.y;
+						Widget* child_hit = m_container->HitTest(x, y);
+						return child_hit ? child_hit : this;
+					}
+				}
+				return this;
 			}
 
 			LayoutInfo& GetLayout() override
@@ -814,12 +865,26 @@ namespace application
 			}
 
 
-
-			std::vector<std::string> ReadPath(std::string path)
+			std::vector<std::string> ReadPath(std::string p)
 			{
-				return platform::ReadPath(path);
+				if (p.empty()) return {};
+
+				return platform::ReadPath(p);
 			}
 
+      void OnClick() override
+      {
+        OnDestroyed("");
+      }
+
+      void OnDestroyed(std::string s)
+      {
+        m_on_destroyed_fn (this, s);
+      }
+      void SetOnDestroyed(std::function<void (void*, std::string)> fn)
+      {
+        m_on_destroyed_fn = fn;
+      }
 
 
 		};
@@ -889,7 +954,8 @@ namespace application
 			platform::Duration  m_mouse_drag_duration;
 			platform::Duration  m_mouse_double_click_duration{ 500.0 };
 
-			std::string m_application_path;
+			std::string  m_application_path;
+
 
 			Application();
 
@@ -898,12 +964,13 @@ namespace application
 			void ProcessEvent(UserEvent*);
 			void Render(LayoutConstraint*, platform::RenderContext*);
 
-			void SaveToFile(std::wstring const& content, std::function<void()>);
+			void SaveToFile(std::string const& content, std::function<void()>);
 			void SaveFileSuccessfullyCallback();
 			void LoadFile();
 
 			void SaveButtonClicked(Widget*, void*);
 			void OpenButtonClicked(Widget*, void*);
+      void FileSelectionFinished(Widget*, void*, std::string);
 		};
 
 	} // namespace gui

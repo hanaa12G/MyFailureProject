@@ -56,10 +56,9 @@ namespace application
 		Application::Application()
 		{
 			InitLayout();
-
-
-			m_applicaiton_path
 			LoadFile();
+
+			m_application_path = platform::CurrentPath();
 		}
 
 		void Application::InitLayout()
@@ -90,7 +89,7 @@ namespace application
 			button->SetId("SaveButton");
 			button->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
 			button->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
-			button->SetText(L"Save");
+			button->SetText("Save");
 			button->SetColor(Color(1.0, 1.0, 0.0, 1.0));
 			button->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
 			button->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
@@ -103,7 +102,7 @@ namespace application
 			button2->SetId("OpenButton");
 			button2->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
 			button2->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
-			button2->SetText(L"Open");
+			button2->SetText("Open");
 			button2->SetColor(Color(1.0, 1.0, 0.0, 1.0));
 			button2->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
 			button2->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
@@ -244,7 +243,7 @@ namespace application
 		}
 
 
-		void Application::SaveToFile(std::wstring const& content, std::function<void()> callback)
+		void Application::SaveToFile(std::string const& content, std::function<void()> callback)
 		{
 			if (platform::WriteFile("test.txt", content))
 				callback();
@@ -255,12 +254,12 @@ namespace application
 			auto filename_box = dynamic_cast<TextBox*>(FindId(m_widget, "FilenameBox"));
 			if (!filename_box) return;
 
-			std::wstring filename = filename_box->GetText();
+			std::string filename = filename_box->GetText();
 
 			if (filename.empty()) return;
 
 
-			std::wstring s = platform::ReadFile(filename);
+			std::string s = platform::ReadFile(filename);
 			auto textbox = dynamic_cast<TextBox*>(FindId(m_widget, "TextBox"));
 			if (!textbox) return;
 
@@ -281,14 +280,24 @@ namespace application
 			auto file_opener = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::FileSelectorType));
 			auto& fo = *dynamic_cast<FileSelector*>(file_opener.get());
 			
-			fo.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.5));
-			fo.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.5));
+			fo.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+			fo.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
 			fo.SetPath(m_application_path);
+			fo.SetId("FileSelector");
+      fo.SetOnDestroyed(std::bind(&Application::FileSelectionFinished, this, file_opener.get(), std::placeholders::_1, std::placeholders::_2));
 			
 
 			layers.SetLayer(level + 1, file_opener);
 
 		}
+
+    void Application::FileSelectionFinished(Widget*, void*, std::string file) 
+    {
+      printf("FIle open : %s\n", file.c_str());
+
+			Layers& layers = *dynamic_cast<Layers*>(m_widget);
+      layers.PopLayer();
+    }
 
 	} // namespace gui
 

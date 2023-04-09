@@ -26,6 +26,10 @@ namespace platform
 
 	std::vector<std::string> ReadPath(std::string);
 	std::string CurrentPath();
+  bool IsFile(std::string path);
+  bool IsDirectory(std::string path);
+  std::string AppendSegment(std::string basepath, std::string name);
+
 
 
 

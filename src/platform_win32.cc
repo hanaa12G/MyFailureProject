@@ -47,6 +47,7 @@ namespace platform
       {
           out.push_back(item.path().filename().string());
       }
+      out.push_back("..");
       return out;
   }
 
@@ -54,6 +55,24 @@ namespace platform
   std::string CurrentPath()
   {
       return std::filesystem::current_path().string();
+  }
+
+  bool IsFile(std::string path)
+  {
+    return std::filesystem::is_regular_file(path);
+  }
+  bool IsDirectory(std::string path)
+  {
+    return std::filesystem::is_directory(path);
+  }
+
+  std::string AppendSegment(std::string basepath, std::string name)
+  {
+    namespace fs = std::filesystem;
+    fs::path base {basepath};
+    base /= name;
+
+    return fs::absolute(base).string();
   }
 
   struct RenderContext
@@ -167,8 +186,9 @@ namespace platform
       my_translation = parent_translation * my_translation;
 
       render_context->render_target->SetTransform(my_translation);
-      for (Widget* widget : m_children)
+      for (auto it = m_children.begin(); it != m_children.end(); ++it)
       {
+        Widget* widget = it->get();
         widget->Draw(render_context, interaction_context);
       }
       render_context->render_target->SetTransform(parent_translation);

@@ -143,34 +143,20 @@ namespace application
 
 		struct Widget
 		{
-			Widget()
-			{
-				SetId();
-			}
-			virtual ~Widget() {}
+			std::string m_id = "Invalid";
+			WidgetType m_type = WidgetType::InvalidType;
+
+			Widget();
+			virtual ~Widget();
 			virtual void Layout(LayoutConstraint const&, InteractionContext&) = 0;
 			virtual void Draw(platform::RenderContext*, InteractionContext) = 0;
 			virtual Widget* HitTest(int, int) = 0;
 			virtual LayoutInfo& GetLayout() = 0;
-			virtual void OnClick() {}
 
-			virtual std::string const& GetId()
-			{
-				return m_id;
-			}
-			virtual void SetId(std::optional<std::string> str = std::nullopt)
-			{
-				m_id = str.value_or(std::to_string((long)this));
-			}
-
-			virtual WidgetType GetType()
-			{
-				return m_type;
-			}
-
-
-			std::string m_id = "Invalid";
-			WidgetType m_type = WidgetType::InvalidType;
+			virtual void OnClick();
+			virtual std::string const& GetId();
+			virtual void SetId(std::optional<std::string> str = std::nullopt);
+			virtual WidgetType GetType();
 		};
 
 
@@ -181,71 +167,16 @@ namespace application
 			Color m_bg_default_color = {};
 			Color m_bg_active_color = {};
 			bool  m_accept_dragging = true;
-
-			Rectangle()
-			{
-				m_type = WidgetType::RectangleType;
-			}
-
 			LayoutInfo m_layout;
 
-
-			void SetColor(Color c)
-			{
-				m_bg_default_color = c;
-			}
-
-			void SetActiveColor(Color c)
-			{
-				m_bg_active_color = c;
-			}
-
-			void SetWidth(WidgetSize w)
-			{
-				m_width = w;
-			}
-			void SetHeight(WidgetSize w)
-			{
-				m_height = w;
-			}
-
-			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
-			{
-				LayoutInfo info = {};
-				info.x = c.x;
-				info.y = c.y;
-
-
-				info.width = FindFixSize(m_width, c.max_width);
-				info.height = FindFixSize(m_height, c.max_height);
-
-				if (interaction_context.dragging == this)
-				{
-					info.x = interaction_context.dragging_dx;
-					info.y = interaction_context.dragging_dy;
-				}
-
-				logger::Debug("INFO (Rectangle): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-
-				m_layout = info;
-			}
-
-			virtual LayoutInfo& GetLayout() override { return m_layout; }
-
-
-
-			virtual Widget* HitTest(int x, int y) override
-			{
-				if (IsLayoutInfoValid(m_layout))
-				{
-					if (x > m_layout.x && x < m_layout.x + m_layout.width &&
-						y > m_layout.y && y < m_layout.y + m_layout.height)
-					{
-						return this;
-					}
-				}
-				return NULL;
-			}
+			Rectangle();
+			void SetColor(Color c);
+			void SetActiveColor(Color c);
+			void SetWidth(WidgetSize w);
+			void SetHeight(WidgetSize w);
+			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
+			virtual LayoutInfo& GetLayout() override;
+			virtual Widget* HitTest(int x, int y) override;
 		};
 
 		struct VerticalContainer : public Widget
@@ -257,276 +188,37 @@ namespace application
 			LayoutInfo m_layout = {};
 
 
-			VerticalContainer()
-			{
-				m_type = WidgetType::VerticalContainerType;
-			}
+			VerticalContainer();
 
-			void PushBack(Widget* w)
-			{
-				m_children.push_back(std::shared_ptr<Widget>(w));
-			}
-			void PushBack(std::shared_ptr<Widget> w)
-			{
-				m_children.push_back(w);
-			}
-
-			void Clear()
-			{
-				m_children.clear();
-			}
-
-			void SetWidth(WidgetSize w)
-			{
-				m_width = w;
-			}
-
-			void SetHeight(WidgetSize w)
-			{
-				m_height = w;
-			}
-
-			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
-			{
-				LayoutInfo info = {};
-				info.x = c.x;
-				info.y = c.y;
-				info.width = 0;
-				info.height = 0;
-
-				int x = 0;
-				int y = 0;
-
-				info.width = FindMaxSize(m_width, c.max_width);
-				info.height = FindMaxSize(m_height, c.max_height);
-
-				size_t i = 0;
-				for (auto it = m_children.begin(); it != m_children.end(); ++it)
-				{
-					Widget* w = it->get();
-					LayoutConstraint child_constraint;
-					child_constraint.max_width = info.width;
-					child_constraint.max_height = info.height;
-					child_constraint.x = 0;
-					child_constraint.y = y;
-
-					w->Layout(child_constraint, interaction_context);
-					LayoutInfo child_layout = w->GetLayout();
-
-					x = std::max(x, child_layout.x + child_layout.width);
-					y = child_layout.y + child_layout.height;
-
-					i++;
-				}
-
-				if (m_width.type != WidgetSize::Type::Fixed)
-					info.width = x < info.width ? x : info.width;
-				if (m_height.type != WidgetSize::Type::Fixed)
-					info.height = y < info.height ? y : info.height;
-				logger::Debug("INFO (VerticalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-
-				m_layout = info;
-			}
-
-
-			virtual LayoutInfo& GetLayout() override { return m_layout; }
-
-			int FindMaxSize(WidgetSize size, int max_size)
-			{
-				switch (size.type)
-				{
-				case WidgetSize::Type::Undefined:
-				{
-					return max_size;
-				} break;
-				case WidgetSize::Type::Ratio:
-				{
-					return max_size * size.value;
-				} break;
-				case WidgetSize::Type::Percent:
-				{
-					return max_size * size.value / 100;
-				} break;
-				case WidgetSize::Type::Fixed:
-				{
-					return size.value > max_size ? max_size : size.value;
-				} break;
-				default:
-				{
-					std::unreachable();
-				} break;
-				}
-				return 0;
-			}
-
-
-			virtual Widget* HitTest(int x, int y) override
-			{
-				if (!IsLayoutInfoValid(m_layout))
-					return NULL;
-
-				Widget* hit = NULL;
-
-				if (x > m_layout.x && x < m_layout.x + m_layout.width &&
-					y > m_layout.y && y < m_layout.y + m_layout.height)
-				{
-					hit = this;
-				}
-
-
-
-				Widget* w = NULL;
-				x -= m_layout.x;
-				y -= m_layout.y;
-				for (auto it = m_children.begin(); it != m_children.end(); ++it)
-				{
-					Widget* widget = it->get();
-					if (IsLayoutInfoValid(widget->GetLayout()))
-					{
-						w = widget->HitTest(x, y);
-						if (w) break;
-					}
-				}
-
-				return w ? w : hit;
-			}
-
+			void PushBack(Widget* w);
+			void PushBack(std::shared_ptr<Widget> w);
+			void Clear();
+			void SetWidth(WidgetSize w);
+			void SetHeight(WidgetSize w);
+			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
+			virtual LayoutInfo& GetLayout() override;
+			int FindMaxSize(WidgetSize size, int max_size);
+			virtual Widget* HitTest(int x, int y) override;
 
 		};
 
 		struct HorizontalContainer : public Widget
 		{
-			std::vector<Widget*> m_children;
+      std::vector<std::shared_ptr<Widget>> m_children;
 
 			WidgetSize m_width = {};
 			WidgetSize m_height = {};
 			LayoutInfo m_layout = {};
 
-			virtual ~HorizontalContainer()
-			{
-				for (Widget* w : m_children)
-				{
-					delete w;
-				}
-			}
+			HorizontalContainer();
+			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
+		  Widget* HitTest(int x, int y) override;
+			virtual LayoutInfo& GetLayout() override;
 
-			HorizontalContainer()
-			{
-				m_type = WidgetType::HorizontalContainerType;
-			}
-
-			void SetWidth(WidgetSize w)
-			{
-				m_width = w;
-			}
-
-			void SetHeight(WidgetSize w)
-			{
-				m_height = w;
-			}
-
-			void PushBack(Widget* w)
-			{
-				m_children.push_back(w);
-			}
-
-			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override
-			{
-				LayoutInfo info = {};
-				info.x = c.x;
-				info.y = c.y;
-				info.width = 0;
-				info.height = 0;
-
-				int x = 0;
-				int y = 0;
-
-				info.width = FindMaxSize(m_width, c.max_width);
-				info.height = FindMaxSize(m_height, c.max_height);
-
-				for (size_t i = 0; Widget * w: m_children)
-				{
-					LayoutConstraint child_constraint;
-					child_constraint.max_width = info.width;
-					child_constraint.max_height = info.height;
-					child_constraint.x = x;
-					child_constraint.y = 0;
-
-					w->Layout(child_constraint, interaction_context);
-					LayoutInfo const& child_layout = w->GetLayout();
-
-					x = child_layout.x + child_layout.width;
-					y = std::max(y, child_layout.y + child_layout.height);
-
-					i++;
-				}
-
-				if (m_width.type != WidgetSize::Type::Fixed)
-					info.width = x < info.width ? x : info.width;
-				if (m_height.type != WidgetSize::Type::Fixed)
-					info.height = y < info.height ? y : info.height;
-				logger::Debug("INFO (HorizontalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-				m_layout = info;
-			}
-
-			virtual LayoutInfo& GetLayout() override { return m_layout; }
-
-			int FindMaxSize(WidgetSize size, int max_size)
-			{
-				switch (size.type)
-				{
-				case WidgetSize::Type::Undefined:
-				{
-					return max_size;
-				} break;
-				case WidgetSize::Type::Ratio:
-				{
-					return max_size * size.value;
-				} break;
-				case WidgetSize::Type::Percent:
-				{
-					return max_size * size.value / 100;
-				} break;
-				case WidgetSize::Type::Fixed:
-				{
-					return size.value > max_size ? max_size : size.value;
-				} break;
-				default:
-				{
-					std::unreachable();
-				} break;
-				}
-				return 0;
-			}
-
-			virtual Widget* HitTest(int x, int y) override
-			{
-				if (!IsLayoutInfoValid(m_layout))
-					return NULL;
-
-				Widget* hit = NULL;
-
-				if (x > m_layout.x && x < m_layout.x + m_layout.width &&
-					y > m_layout.y && y < m_layout.y + m_layout.height)
-				{
-					hit = this;
-				}
-
-				Widget* w = NULL;
-				x -= m_layout.x;
-				y -= m_layout.y;
-				for (Widget* widget : m_children)
-				{
-					if (IsLayoutInfoValid(widget->GetLayout()))
-					{
-						w = widget->HitTest(x, y);
-						if (w) break;
-					}
-				}
-
-				return w ? w : hit;
-			}
-
+			void SetWidth(WidgetSize w);
+			void SetHeight(WidgetSize w);
+			void PushBack(Widget* w);
+			int FindMaxSize(WidgetSize size, int max_size);
 
 		};
 
@@ -540,57 +232,19 @@ namespace application
 			Color m_border_color;
 			std::function<void(void*)> m_on_clicked;
 
-			Button()
-			{
-				m_type = WidgetType::ButtonType;
-			}
+			Button();
 
-			void SetColor(Color c)
-			{
-				m_bg_default_color = c;
-			}
-
-			void SetActiveColor(Color c)
-			{
-				m_bg_active_color = c;
-			}
-
-			void SetTextColor(Color c)
-			{
-				m_fg_default_color = c;
-			}
-			void SetTextActiveColor(Color c)
-			{
-				m_fg_active_color = c;
-			}
-
-			void SetWidth(WidgetSize w)
-			{
-				m_width = w;
-			}
-
-			void SetHeight(WidgetSize w)
-			{
-				m_height = w;
-			}
-			void SetText(std::string text)
-			{
-				m_text = text;
-			}
-
-			void SetOnClicked(std::function<void(void*)> fn)
-			{
-				m_on_clicked = fn;
-			}
-
-			void OnClick()
-			{
-				m_on_clicked(this);
-			}
-
-			void SetBorderColor(Color c) {
-				m_border_color = c;
-			}
+			void SetColor(Color c);
+			void SetActiveColor(Color c);
+			void SetTextColor(Color c);
+			void SetTextActiveColor(Color c);
+			void SetWidth(WidgetSize w);
+			void SetHeight(WidgetSize w);
+			void SetText(std::string text);
+			std::string GetText();
+			void SetOnClicked(std::function<void(void*)> fn);
+			void OnClick() override;
+			void SetBorderColor(Color c);
 		};
 
 		struct TextBox : public Rectangle
@@ -599,46 +253,15 @@ namespace application
 
 			Color m_fg_default_color;
 
-			TextBox()
-			{
-				m_type = WidgetType::TextBoxType;
-			}
+			TextBox();
 
-			void SetColor(Color c)
-			{
-				m_bg_default_color = c;
-			}
-
-			void SetTextColor(Color c)
-			{
-				m_fg_default_color = c;
-			}
-
-			void SetActiveColor(Color c)
-			{
-				m_bg_active_color = c;
-			}
-
-			void SetWidth(WidgetSize w)
-			{
-				m_width = w;
-			}
-
-			void SetHeight(WidgetSize w)
-			{
-				m_height = w;
-			}
-
-
-			std::string const& GetText()
-			{
-				return m_text;
-			}
-
-			void SetText(std::string text)
-			{
-				m_text = text;
-			}
+			void SetColor(Color c);
+			void SetTextColor(Color c);
+			void SetActiveColor(Color c);
+			void SetWidth(WidgetSize w);
+			void SetHeight(WidgetSize w);
+			std::string const& GetText();
+			void SetText(std::string text);
 		};
 
 
@@ -649,110 +272,17 @@ namespace application
 			WidgetSize m_width;
 			WidgetSize m_height;
 
-			Layers()
-			{
-				m_type = WidgetType::LayersType;
-			}
+			Layers();
 
+			void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
+			Widget* HitTest(int x, int y) override;
+			void OnClick() override;
+			LayoutInfo& GetLayout() override;
 
-			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
-			{
-				LayoutInfo info = {};
-				info.x = c.x;
-				info.y = c.y;
-				info.width = 0;
-				info.height = 0;
-
-				int x = 0;
-				int y = 0;
-
-				info.width = FindMaxSize(m_width, c.max_width);
-				info.height = FindMaxSize(m_height, c.max_height);
-
-				LayoutConstraint layer_constraint = {
-				  .max_width = info.width,
-				  .max_height = info.height,
-				  .x = c.x,
-				  .y = c.y
-				};
-
-				for (auto i = m_layers.begin(); i != m_layers.end(); ++i)
-				{
-					i->second->Layout(layer_constraint, interaction_context);
-				}
-
-				logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-
-				m_layout = info;
-			}
-
-			LayoutInfo& GetLayout() override
-			{
-				return m_layout;
-			}
-
-			void SetLayer(int layer, std::shared_ptr<Widget> w)
-			{
-				m_layers[layer] = w;
-			}
-
-      void PopLayer()
-      {
-        if (m_layers.size() <= 1) return;
-        auto nit = m_layers.begin();
-        nit++;
-        m_layers.erase(nit, m_layers.end());
-      }
-
-			int GetLevel() { return m_layers.rbegin()->first; }
-
-
-			Widget* HitTest(int x, int y) override
-			{
-				int number_of_layers = m_layers.size();
-				if (number_of_layers > 0)
-				{
-					Widget* hit = m_layers.rbegin()->second->HitTest(x, y);
-					if (hit) return hit;
-				}
-
-				return this;
-			}
-
-			void OnClick() override
-			{
-				auto it = m_layers.lower_bound(1);
-				m_layers.erase(it, m_layers.end());
-			}
-
-			int FindMaxSize(WidgetSize size, int max_size)
-			{
-				switch (size.type)
-				{
-				case WidgetSize::Type::Undefined:
-				{
-					return max_size;
-				} break;
-				case WidgetSize::Type::Ratio:
-				{
-					return max_size * size.value;
-				} break;
-				case WidgetSize::Type::Percent:
-				{
-					return max_size * size.value / 100;
-				} break;
-				case WidgetSize::Type::Fixed:
-				{
-					return size.value > max_size ? max_size : size.value;
-				} break;
-				default:
-				{
-					std::unreachable();
-				} break;
-				}
-				return 0;
-			}
-
+			void SetLayer(int layer, std::shared_ptr<Widget> w);
+			void PopLayer();
+			int GetLevel();
+			int FindMaxSize(WidgetSize size, int max_size);
 		};
 
 		struct FileSelector : public Widget
@@ -761,132 +291,31 @@ namespace application
 			std::vector<std::string> m_file_names;
 
 			std::shared_ptr<Widget> m_container;
+      std::shared_ptr<Widget> m_confirm_button;
+      std::shared_ptr<Widget> m_cancel_button;
+      std::shared_ptr<Widget> m_filepath_textbox;
+
 			WidgetSize m_width;
 			WidgetSize m_height;
 			LayoutInfo m_layout;
 
-      std::function<void(void*, std::string)> m_on_destroyed_fn;
+			std::function<void(void*, std::string)> m_on_destroyed_fn;
 
-			FileSelector()
-			{
-				m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
-				VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
-				container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-				container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-				container.SetId("FileSelector>Container");
-			}
+      FileSelector();
 
-			void SetWidth(WidgetSize size)
-			{
-				m_width = size;
-			}
-			void SetHeight(WidgetSize size)
-			{
-				m_height = size;
-			}
+			void SetWidth(WidgetSize size);
+			void SetHeight(WidgetSize size);
+			LayoutInfo& GetLayout() override;
 
-			void SetPath(std::string path)
-			{
-				if (m_current_path != path)
-				{
-					auto container = dynamic_cast<VerticalContainer*>(m_container.get());
-					container->Clear();
+			void Layout(LayoutConstraint const& layout, InteractionContext& interaction_context) override;
+			Widget* HitTest(int x, int y) override;
+			void OnClick() override;
 
-					m_current_path = path;
-					m_file_names = ReadPath(m_current_path);
-          std::sort(m_file_names.begin(), m_file_names.end());
-
-					for (auto item : m_file_names)
-					{
-						auto btnw = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
-						auto btn = dynamic_cast<Button*>(btnw.get());
-						btn->SetText(item);
-            btn->SetId(item);
-						btn->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
-						btn->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
-						btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
-						btn->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
-						btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.0));
-
-						container->PushBack(btnw);
-					}
-				}
-			}
-
-
-			void Layout(LayoutConstraint const& layout, InteractionContext& interaction_context) override
-			{
-        m_layout.x = layout.x;
-        m_layout.y = layout.y;
-        m_layout.width = FindFixSize(m_width, layout.max_width);
-        m_layout.height = FindFixSize(m_height, layout.max_height);
-
-
-        // get some space for padding
-        int child_max_width = m_layout.width * 0.6;
-        int child_max_height = m_layout.height * 0.6;
-        int x = (m_layout.width - child_max_width) / 2;
-        int y = (m_layout.height - child_max_height) / 2;
-
-
-
-        LayoutConstraint constraint {
-          .max_width = child_max_width,
-          .max_height = child_max_height,
-          .x = x,
-          .y = y,
-        };
-
-				m_container.get()->Layout(constraint, interaction_context);
-			}
-
-			Widget* HitTest(int x, int y) override
-			{
-				if (IsLayoutInfoValid(m_layout))
-				{
-					if (x < m_layout.x || x >(m_layout.x + m_layout.width) ||
-						y < m_layout.y || y >(m_layout.y + m_layout.height))
-						return NULL;
-
-					else
-					{
-						x -= m_layout.x;
-						y -= m_layout.y;
-						Widget* child_hit = m_container->HitTest(x, y);
-						return child_hit ? child_hit : this;
-					}
-				}
-				return this;
-			}
-
-			LayoutInfo& GetLayout() override
-			{
-				return m_layout;
-			}
-
-
-			std::vector<std::string> ReadPath(std::string p)
-			{
-				if (p.empty()) return {};
-
-				return platform::ReadPath(p);
-			}
-
-      void OnClick() override
-      {
-        OnDestroyed("");
-      }
-
-      void OnDestroyed(std::string s)
-      {
-        m_on_destroyed_fn (this, s);
-      }
-      void SetOnDestroyed(std::function<void (void*, std::string)> fn)
-      {
-        m_on_destroyed_fn = fn;
-      }
-
-
+			void SetPath(std::string path);
+			std::vector<std::string> ReadPath(std::string p);
+			void PathButtonSelect(Widget* w, void*);
+			void OnDestroyed(std::string s);
+			void SetOnDestroyed(std::function<void(void*, std::string)> fn);
 		};
 
 
@@ -970,7 +399,7 @@ namespace application
 
 			void SaveButtonClicked(Widget*, void*);
 			void OpenButtonClicked(Widget*, void*);
-      void FileSelectionFinished(Widget*, void*, std::string);
+			void FileSelectionFinished(Widget*, void*, std::string);
 		};
 
 	} // namespace gui

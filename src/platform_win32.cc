@@ -1,4 +1,5 @@
 #define NOMINMAX
+#define UNICODE
 #include <windows.h>
 
 #include <sys/stat.h>
@@ -12,6 +13,7 @@
 #include <vector>
 #include <set>
 #include <chrono>
+#include <cassert>
 #include <utility>
 #include <optional>
 #include <fstream>
@@ -73,6 +75,16 @@ namespace platform
     base /= name;
 
     return fs::absolute(base).string();
+  }
+
+
+  std::wstring ConvertToPlatform(std::string s)
+  {
+    std::wstring out(s.size(), wchar_t {});
+
+    if (0 == MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, s.c_str(), s.size(), &out[0], s.size()))
+      return {};
+    return out;
   }
 
   struct RenderContext
@@ -823,9 +835,19 @@ public:
         OnMouseUp(mouse_x, mouse_y);
         return 0;
       } break;
+      //case WM_KEYDOWN:
+      //{
+      //  OnKeyboartEvent(wparam);
+      //  UINT virtual_key = wparam;
+      //  UINT mapped_key = MapVirtualKey(virtual_key, MAPVK_VK_TO_CHAR);
+      //  printf("Virtual key: %u -> %u\n", virtual_key, mapped_key);
+      //} break;
       case WM_CHAR:
       {
-        OnKeyboartEvent(wparam);
+        // OnKeyboartEvent(wparam);
+        printf("Char: %llx %c\n", wparam, (wchar_t) wparam);
+        OnKeyboardEvent(wparam);
+
         return 0;
       } break;
       case WM_MOUSEWHEEL:
@@ -858,7 +880,7 @@ public:
 
       // UpdateApplicationLibrary();
 
-      while ((r = PeekMessage(&msg, m_hwnd, 0, 0, PM_REMOVE)) != 0)
+      while ((r = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) != 0)
       {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
@@ -932,8 +954,59 @@ public:
     m_app->ProcessEvent(&event);
   }
 
-  void OnKeyboartEvent(char c)
+  void OnKeyboardEvent(wchar_t c)
   {
+    printf("Char: %llx %c\n", c, (wchar_t) c);
+
+    application::gui::KeyboardEvent e;
+
+    e.key_press = 0;
+    e.modifier = 0;
+    e.key_length = 0;
+
+    if (c <= 0x007f)
+    {
+      e.key_press = c;
+      e.key_length = 1;
+    }
+    else if (c >= 0x0080 && c <= 0x07ff)
+    {
+      std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+      std::string s = converter.to_bytes(c);
+
+      assert(s.size() == 2);
+
+      char* p = (char*) &e.key_press;
+      p[0] = s[0];
+      p[1] = s[1];
+
+      e.key_length = 2;
+    }
+    else if (c >= 0x0800 && c <= 0xffff)
+    {
+      std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+      std::string s = converter.to_bytes(c);
+
+      assert(s.size() == 3);
+
+      char* p = (char*) &e.key_press;
+      p[0] = s[0];
+      p[1] = s[1];
+      p[2] = s[2];
+
+      e.key_length = 3;
+    }
+    else if (c >= 0x10000 && c <= 0x10ffff) 
+    {
+      printf("Suplementary plane\n");
+    }
+
+    application::gui::UserEvent event {
+      .type = application::gui::UserEvent::Type::KeyboardEventType,
+        .keyboard_event = e
+    };
+
+    m_app->ProcessEvent(&event);
   }
 
   void OnMouseWheel(DWORD wparam, DWORD lparam)

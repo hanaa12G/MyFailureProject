@@ -21,7 +21,41 @@ namespace application
 	}
 	namespace gui
 	{
+    enum Virtual_KeyCode {
+      VirtualKey_a,
+      VirtualKey_b,
+      VirtualKey_c,
+      VirtualKey_d,
+      VirtualKey_e,
+      VirtualKey_f,
+      VirtualKey_g,
+      VirtualKey_h,
+      VirtualKey_i,
+      VirtualKey_j,
+      VirtualKey_k,
+      VirtualKey_l,
+      VirtualKey_m,
+      VirtualKey_n,
+      VirtualKey_o,
+      VirtualKey_p,
+      VirtualKey_q,
+      VirtualKey_r,
+      VirtualKey_s,
+      VirtualKey_t,
+      VirtualKey_u,
+      VirtualKey_v,
+      VirtualKey_w,
+      VirtualKey_x,
+      VirtualKey_y,
+      VirtualKey_z
+    };
 
+		struct KeyboardEvent
+		{
+			int key_press;
+			int modifier;
+			int key_length; // utf-8 can be 1, 2, 3, 4 bytes in length
+		};
 		enum WidgetType
 		{
 			InvalidType,
@@ -154,6 +188,7 @@ namespace application
 			virtual LayoutInfo& GetLayout() = 0;
 
 			virtual void OnClick();
+      virtual void OnChar(KeyboardEvent);
 			virtual std::string const& GetId();
 			virtual void SetId(std::optional<std::string> str = std::nullopt);
 			virtual WidgetType GetType();
@@ -250,8 +285,9 @@ namespace application
 		struct TextBox : public Rectangle
 		{
 			std::string m_text;
-
 			Color m_fg_default_color;
+
+      std::function<void(void*, int)> m_on_char_input_fn;
 
 			TextBox();
 
@@ -262,6 +298,8 @@ namespace application
 			void SetHeight(WidgetSize w);
 			std::string const& GetText();
 			void SetText(std::string text);
+      void OnChar(KeyboardEvent e) override;
+      void SetOnChar(std::function<void(void*, int)> fn);
 		};
 
 
@@ -327,11 +365,6 @@ namespace application
 		};
 
 
-		struct KeyboardEvent
-		{
-			int key_press;
-			int modifier;
-		};
 
 		struct MouseEvent
 		{

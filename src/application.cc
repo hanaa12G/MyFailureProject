@@ -55,100 +55,104 @@ namespace application
 		}
 
 
-    Widget::Widget()
-    {
-      SetId();
-    }
+		Widget::Widget()
+		{
+			SetId();
+		}
 
-    Widget::~Widget() 
-    {
-    }
+		Widget::~Widget()
+		{
+		}
 
-    std::string const& Widget::GetId()
-    {
-      return m_id;
-    }
+		std::string const& Widget::GetId()
+		{
+			return m_id;
+		}
 
-    void Widget::SetId(std::optional<std::string> str)
-    {
-      m_id = str.value_or(std::to_string((long)this));
-    }
+		void Widget::SetId(std::optional<std::string> str)
+		{
+			m_id = str.value_or(std::to_string((long)this));
+		}
 
-    WidgetType Widget::GetType()
-    {
-      return m_type;
-    }
+		WidgetType Widget::GetType()
+		{
+			return m_type;
+		}
 
-    void Widget::OnClick()
-    {
-    }
+		void Widget::OnClick()
+		{
+		}
 
-
-
-    Rectangle::Rectangle()
-    {
-      m_type = WidgetType::RectangleType;
-    }
-
-    void Rectangle::SetColor(Color c)
-    {
-      m_bg_default_color = c;
-    }
-
-    void Rectangle::SetActiveColor(Color c)
-    {
-      m_bg_active_color = c;
-    }
-
-    void Rectangle::SetWidth(WidgetSize w)
-    {
-      m_width = w;
-    }
-    void Rectangle::SetHeight(WidgetSize w)
-    {
-      m_height = w;
-    }
-
-    void Rectangle::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
-    {
-      LayoutInfo info = {};
-      info.x = c.x;
-      info.y = c.y;
-
-
-      info.width = FindFixSize(m_width, c.max_width);
-      info.height = FindFixSize(m_height, c.max_height);
-
-      if (interaction_context.dragging == this)
-      {
-        info.x = interaction_context.dragging_dx;
-        info.y = interaction_context.dragging_dy;
-      }
-
-      logger::Debug("INFO (Rectangle): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-
-      m_layout = info;
-    }
-
-    LayoutInfo& Rectangle::GetLayout()
-    { 
-      return m_layout;
-    }
+		void Widget::OnChar(KeyboardEvent e)
+		{
+		}
 
 
 
-    Widget* Rectangle::HitTest(int x, int y)
-    {
-      if (IsLayoutInfoValid(m_layout))
-      {
-        if (x > m_layout.x && x < m_layout.x + m_layout.width &&
-          y > m_layout.y && y < m_layout.y + m_layout.height)
-        {
-          return this;
-        }
-      }
-      return NULL;
-    }
+		Rectangle::Rectangle()
+		{
+			m_type = WidgetType::RectangleType;
+		}
+
+		void Rectangle::SetColor(Color c)
+		{
+			m_bg_default_color = c;
+		}
+
+		void Rectangle::SetActiveColor(Color c)
+		{
+			m_bg_active_color = c;
+		}
+
+		void Rectangle::SetWidth(WidgetSize w)
+		{
+			m_width = w;
+		}
+		void Rectangle::SetHeight(WidgetSize w)
+		{
+			m_height = w;
+		}
+
+		void Rectangle::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
+		{
+			LayoutInfo info = {};
+			info.x = c.x;
+			info.y = c.y;
+
+
+			info.width = FindFixSize(m_width, c.max_width);
+			info.height = FindFixSize(m_height, c.max_height);
+
+			if (interaction_context.dragging == this)
+			{
+				info.x = interaction_context.dragging_dx;
+				info.y = interaction_context.dragging_dy;
+			}
+
+			logger::Debug("INFO (Rectangle): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+			m_layout = info;
+		}
+
+		LayoutInfo& Rectangle::GetLayout()
+		{
+			return m_layout;
+		}
+
+
+
+		Widget* Rectangle::HitTest(int x, int y)
+		{
+			if (IsLayoutInfoValid(m_layout))
+			{
+				if (x > m_layout.x && x < m_layout.x + m_layout.width &&
+					y > m_layout.y && y < m_layout.y + m_layout.height)
+				{
+					return this;
+				}
+			}
+			return NULL;
+		}
 
 
 
@@ -227,8 +231,8 @@ namespace application
 
 		LayoutInfo& VerticalContainer::GetLayout()
 		{
-      return m_layout;
-    }
+			return m_layout;
+		}
 
 		int VerticalContainer::FindMaxSize(WidgetSize size, int max_size)
 		{
@@ -293,489 +297,537 @@ namespace application
 
 
 
-    HorizontalContainer::HorizontalContainer()
-    {
-      m_type = WidgetType::HorizontalContainerType;
-    }
-
-    void HorizontalContainer::SetWidth(WidgetSize w)
-    {
-      m_width = w;
-    }
-
-    void HorizontalContainer::SetHeight(WidgetSize w)
-    {
-      m_height = w;
-    }
-
-    void HorizontalContainer::PushBack(Widget* w)
-    {
-      m_children.push_back(std::shared_ptr<Widget>(w));
-    }
-
-    void HorizontalContainer::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
-    {
-      LayoutInfo info = {};
-      info.x = c.x;
-      info.y = c.y;
-      info.width = 0;
-      info.height = 0;
-
-      int x = 0;
-      int y = 0;
-
-      info.width = FindMaxSize(m_width, c.max_width);
-      info.height = FindMaxSize(m_height, c.max_height);
-
-      int i = 0;
-      for (auto it = m_children.begin(); it != m_children.end(); ++it)
-      {
-        Widget* w = it->get();
-        LayoutConstraint child_constraint;
-        child_constraint.max_width = info.width;
-        child_constraint.max_height = info.height;
-        child_constraint.x = x;
-        child_constraint.y = 0;
-
-        w->Layout(child_constraint, interaction_context);
-        LayoutInfo const& child_layout = w->GetLayout();
-
-        x = child_layout.x + child_layout.width;
-        y = std::max(y, child_layout.y + child_layout.height);
-
-        i++;
-      }
-
-      if (m_width.type != WidgetSize::Type::Fixed)
-        info.width = x < info.width ? x : info.width;
-      if (m_height.type != WidgetSize::Type::Fixed)
-        info.height = y < info.height ? y : info.height;
-      logger::Debug("INFO (HorizontalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-      m_layout = info;
-    }
-
-    LayoutInfo& HorizontalContainer::GetLayout() 
-    {
-      return m_layout;
-    }
-
-    int HorizontalContainer::FindMaxSize(WidgetSize size, int max_size)
-    {
-      switch (size.type)
-      {
-      case WidgetSize::Type::Undefined:
-      {
-        return max_size;
-      } break;
-      case WidgetSize::Type::Ratio:
-      {
-        return max_size * size.value;
-      } break;
-      case WidgetSize::Type::Percent:
-      {
-        return max_size * size.value / 100;
-      } break;
-      case WidgetSize::Type::Fixed:
-      {
-        return size.value > max_size ? max_size : size.value;
-      } break;
-      default:
-      {
-        std::unreachable();
-      } break;
-      }
-      return 0;
-    }
-
-    Widget* HorizontalContainer::HitTest(int x, int y)
-    {
-      if (!IsLayoutInfoValid(m_layout))
-        return NULL;
-
-      Widget* hit = NULL;
-
-      if (x > m_layout.x && x < m_layout.x + m_layout.width &&
-        y > m_layout.y && y < m_layout.y + m_layout.height)
-      {
-        hit = this;
-      }
-
-      Widget* w = NULL;
-      x -= m_layout.x;
-      y -= m_layout.y;
-      for (auto it = m_children.begin(); it != m_children.end(); ++it)
-      {
-        Widget* widget = it->get();
-        if (IsLayoutInfoValid(widget->GetLayout()))
-        {
-          w = widget->HitTest(x, y);
-          if (w) break;
-        }
-      }
-
-      return w ? w : hit;
-    }
-
-
-
-	
-    Button::Button()
-    {
-      m_type = WidgetType::ButtonType;
-    }
-
-    void Button::SetColor(Color c)
-    {
-      m_bg_default_color = c;
-    }
-
-    void Button::SetActiveColor(Color c)
-    {
-      m_bg_active_color = c;
-    }
-
-    void Button::SetTextColor(Color c)
-    {
-      m_fg_default_color = c;
-    }
-    void Button::SetTextActiveColor(Color c)
-    {
-      m_fg_active_color = c;
-    }
-
-    void Button::SetWidth(WidgetSize w)
-    {
-      m_width = w;
-    }
-
-    void Button::SetHeight(WidgetSize w)
-    {
-      m_height = w;
-    }
-    void Button::SetText(std::string text)
-    {
-      m_text = text;
-    }
-
-    std::string Button::GetText()
-    {
-      return m_text;
-    }
-
-    void Button::SetOnClicked(std::function<void(void*)> fn)
-    {
-      m_on_clicked = fn;
-    }
-
-    void Button::OnClick()
-    {
-      m_on_clicked(this);
-    }
-
-    void Button::SetBorderColor(Color c) 
-    {
-      m_border_color = c;
-    }
-
-
-    TextBox::TextBox()
-    {
-      m_type = WidgetType::TextBoxType;
-    }
-
-    void TextBox::SetColor(Color c)
-    {
-      m_bg_default_color = c;
-    }
-
-    void TextBox::SetTextColor(Color c)
-    {
-      m_fg_default_color = c;
-    }
-
-    void TextBox::SetActiveColor(Color c)
-    {
-      m_bg_active_color = c;
-    }
-
-    void TextBox::SetWidth(WidgetSize w)
-    {
-      m_width = w;
-    }
-
-    void TextBox::SetHeight(WidgetSize w)
-    {
-      m_height = w;
-    }
-
-    std::string const& TextBox::GetText()
-    {
-      return m_text;
-    }
-
-    void TextBox::SetText(std::string text)
-    {
-      m_text = text;
-    }
-
-
-    Layers::Layers()
-    {
-      m_type = WidgetType::LayersType;
-    }
-
-    void Layers::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
-    {
-      LayoutInfo info = {};
-      info.x = c.x;
-      info.y = c.y;
-      info.width = 0;
-      info.height = 0;
-
-      int x = 0;
-      int y = 0;
-
-      info.width = FindMaxSize(m_width, c.max_width);
-      info.height = FindMaxSize(m_height, c.max_height);
-
-      LayoutConstraint layer_constraint = {
-        .max_width = info.width,
-        .max_height = info.height,
-        .x = c.x,
-        .y = c.y
-      };
-
-      for (auto i = m_layers.begin(); i != m_layers.end(); ++i)
-      {
-        i->second->Layout(layer_constraint, interaction_context);
-      }
-
-      logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
-
-      m_layout = info;
-    }
-
-    LayoutInfo& Layers::GetLayout()
-    {
-      return m_layout;
-    }
-
-    void Layers::SetLayer(int layer, std::shared_ptr<Widget> w)
-    {
-      m_layers[layer] = w;
-    }
-
-    void Layers::PopLayer()
-    {
-      if (m_layers.size() <= 1) return;
-      auto nit = m_layers.begin();
-      nit++;
-      m_layers.erase(nit, m_layers.end());
-    }
-
-    int Layers::GetLevel() 
-    { 
-      return m_layers.rbegin()->first; 
-    }
-
-    Widget* Layers::HitTest(int x, int y)
-    {
-      int number_of_layers = m_layers.size();
-      if (number_of_layers > 0)
-      {
-        Widget* hit = m_layers.rbegin()->second->HitTest(x, y);
-        if (hit) return hit;
-      }
-
-      return this;
-    }
-
-    void Layers::OnClick()
-    {
-      auto it = m_layers.lower_bound(1);
-      m_layers.erase(it, m_layers.end());
-    }
-
-    int Layers::FindMaxSize(WidgetSize size, int max_size)
-    {
-      switch (size.type)
-      {
-      case WidgetSize::Type::Undefined:
-      {
-        return max_size;
-      } break;
-      case WidgetSize::Type::Ratio:
-      {
-        return max_size * size.value;
-      } break;
-      case WidgetSize::Type::Percent:
-      {
-        return max_size * size.value / 100;
-      } break;
-      case WidgetSize::Type::Fixed:
-      {
-        return size.value > max_size ? max_size : size.value;
-      } break;
-      default:
-      {
-        std::unreachable();
-      } break;
-      }
-      return 0;
-    }
-
-
-
-    FileSelector::FileSelector()
-    {
-				m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
-				VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
-				container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-				container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-				container.SetId("FileSelector>Container");
-    }
-
-    void FileSelector::SetPath(std::string path)
-    {
-      if (m_current_path != path)
-      {
-        auto container = dynamic_cast<VerticalContainer*>(m_container.get());
-        container->Clear();
-
-        m_current_path = path;
-        m_file_names = ReadPath(m_current_path);
-        std::sort(m_file_names.begin(), m_file_names.end());
-
-        for (auto item : m_file_names)
-        {
-          auto btnw = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
-          auto btn = dynamic_cast<Button*>(btnw.get());
-          btn->SetText(item);
-          btn->SetId(item);
-          btn->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
-          btn->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
-          btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
-          btn->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
-          btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.0));
-          btn->SetOnClicked(std::bind(&FileSelector::PathButtonSelect, this, btn, std::placeholders::_1));
-
-          container->PushBack(btnw);
-        }
-      }
-    }
-
-    void FileSelector::SetWidth(WidgetSize size)
-    {
-      m_width = size;
-    }
-    void FileSelector::SetHeight(WidgetSize size)
-    {
-      m_height = size;
-    }
-
-    LayoutInfo& FileSelector::GetLayout()
-    {
-      return m_layout;
-    }
-
-    void FileSelector::Layout(LayoutConstraint const& layout, InteractionContext& interaction_context)
-    {
-      m_layout.x = layout.x;
-      m_layout.y = layout.y;
-      m_layout.width = FindFixSize(m_width, layout.max_width);
-      m_layout.height = FindFixSize(m_height, layout.max_height);
-
-
-      // get some space for padding
-      int child_max_width = m_layout.width * 0.6;
-      int child_max_height = m_layout.height * 0.6;
-      int x = (m_layout.width - child_max_width) / 2;
-      int y = (m_layout.height - child_max_height) / 2;
-
-
-
-      LayoutConstraint constraint{
-        .max_width = child_max_width,
-        .max_height = child_max_height,
-        .x = x,
-        .y = y,
-      };
-
-      m_container.get()->Layout(constraint, interaction_context);
-    }
-
-    Widget* FileSelector::HitTest(int x, int y)
-    {
-      if (IsLayoutInfoValid(m_layout))
-      {
-        if (x < m_layout.x || x >(m_layout.x + m_layout.width) ||
-          y < m_layout.y || y >(m_layout.y + m_layout.height))
-          return NULL;
-
-        else
-        {
-          x -= m_layout.x;
-          y -= m_layout.y;
-          Widget* child_hit = m_container->HitTest(x, y);
-          return child_hit ? child_hit : this;
-        }
-      }
-      return this;
-    }
-
-    std::vector<std::string> FileSelector::ReadPath(std::string p)
-    {
-      if (p.empty()) return {};
-
-      return platform::ReadPath(p);
-    }
-
-    void FileSelector::OnClick()
-    {
-      OnDestroyed("");
-    }
-
-    void FileSelector::PathButtonSelect(Widget* w, void*)
-    {
-      if (!w) return;
-      auto widget = (Widget*)w;
-
-      auto& button = dynamic_cast<Button&>(*widget);
-
-      std::string filename = button.GetText();
-      std::string newpath = platform::AppendSegment(m_current_path, filename);
-
-      if (platform::IsFile(newpath))
-      {
-        VerticalContainer* container = dynamic_cast<VerticalContainer*>(m_container.get());
-        for (auto it = container->m_children.begin();
-             it != container->m_children.end();
-             it++)
-        {
-          auto btn = dynamic_cast<Button*>(it->get());
-          if (!btn) continue;
-
-          btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
-        }
-        button.SetColor(Color(0.0, 0.3, 0.6, 1.));
-      }
-      else if (platform::IsDirectory(newpath))
-      {
-        SetPath(newpath);
-      }
-    }
-
-    void FileSelector::OnDestroyed(std::string s)
-    {
-      if (s.empty())
-        m_on_destroyed_fn(this, s);
-
-    }
-
-    void FileSelector::SetOnDestroyed(std::function<void(void*, std::string)> fn)
-    {
-      m_on_destroyed_fn = fn;
-    }
+		HorizontalContainer::HorizontalContainer()
+		{
+			m_type = WidgetType::HorizontalContainerType;
+		}
+
+		void HorizontalContainer::SetWidth(WidgetSize w)
+		{
+			m_width = w;
+		}
+
+		void HorizontalContainer::SetHeight(WidgetSize w)
+		{
+			m_height = w;
+		}
+
+		void HorizontalContainer::PushBack(Widget* w)
+		{
+			m_children.push_back(std::shared_ptr<Widget>(w));
+		}
+
+		void HorizontalContainer::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
+		{
+			LayoutInfo info = {};
+			info.x = c.x;
+			info.y = c.y;
+			info.width = 0;
+			info.height = 0;
+
+			int x = 0;
+			int y = 0;
+
+			info.width = FindMaxSize(m_width, c.max_width);
+			info.height = FindMaxSize(m_height, c.max_height);
+
+			int i = 0;
+			for (auto it = m_children.begin(); it != m_children.end(); ++it)
+			{
+				Widget* w = it->get();
+				LayoutConstraint child_constraint;
+				child_constraint.max_width = info.width;
+				child_constraint.max_height = info.height;
+				child_constraint.x = x;
+				child_constraint.y = 0;
+
+				w->Layout(child_constraint, interaction_context);
+				LayoutInfo const& child_layout = w->GetLayout();
+
+				x = child_layout.x + child_layout.width;
+				y = std::max(y, child_layout.y + child_layout.height);
+
+				i++;
+			}
+
+			if (m_width.type != WidgetSize::Type::Fixed)
+				info.width = x < info.width ? x : info.width;
+			if (m_height.type != WidgetSize::Type::Fixed)
+				info.height = y < info.height ? y : info.height;
+			logger::Debug("INFO (HorizontalContainer): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+			m_layout = info;
+		}
+
+		LayoutInfo& HorizontalContainer::GetLayout()
+		{
+			return m_layout;
+		}
+
+		int HorizontalContainer::FindMaxSize(WidgetSize size, int max_size)
+		{
+			switch (size.type)
+			{
+			case WidgetSize::Type::Undefined:
+			{
+				return max_size;
+			} break;
+			case WidgetSize::Type::Ratio:
+			{
+				return max_size * size.value;
+			} break;
+			case WidgetSize::Type::Percent:
+			{
+				return max_size * size.value / 100;
+			} break;
+			case WidgetSize::Type::Fixed:
+			{
+				return size.value > max_size ? max_size : size.value;
+			} break;
+			default:
+			{
+				std::unreachable();
+			} break;
+			}
+			return 0;
+		}
+
+		Widget* HorizontalContainer::HitTest(int x, int y)
+		{
+			if (!IsLayoutInfoValid(m_layout))
+				return NULL;
+
+			Widget* hit = NULL;
+
+			if (x > m_layout.x && x < m_layout.x + m_layout.width &&
+				y > m_layout.y && y < m_layout.y + m_layout.height)
+			{
+				hit = this;
+			}
+
+			Widget* w = NULL;
+			x -= m_layout.x;
+			y -= m_layout.y;
+			for (auto it = m_children.begin(); it != m_children.end(); ++it)
+			{
+				Widget* widget = it->get();
+				if (IsLayoutInfoValid(widget->GetLayout()))
+				{
+					w = widget->HitTest(x, y);
+					if (w) break;
+				}
+			}
+
+			return w ? w : hit;
+		}
+
+
+
+
+		Button::Button()
+		{
+			m_type = WidgetType::ButtonType;
+		}
+
+		void Button::SetColor(Color c)
+		{
+			m_bg_default_color = c;
+		}
+
+		void Button::SetActiveColor(Color c)
+		{
+			m_bg_active_color = c;
+		}
+
+		void Button::SetTextColor(Color c)
+		{
+			m_fg_default_color = c;
+		}
+		void Button::SetTextActiveColor(Color c)
+		{
+			m_fg_active_color = c;
+		}
+
+		void Button::SetWidth(WidgetSize w)
+		{
+			m_width = w;
+		}
+
+		void Button::SetHeight(WidgetSize w)
+		{
+			m_height = w;
+		}
+		void Button::SetText(std::string text)
+		{
+			m_text = text;
+		}
+
+		std::string Button::GetText()
+		{
+			return m_text;
+		}
+
+		void Button::SetOnClicked(std::function<void(void*)> fn)
+		{
+			m_on_clicked = fn;
+		}
+
+		void Button::OnClick()
+		{
+			m_on_clicked(this);
+		}
+
+		void Button::SetBorderColor(Color c)
+		{
+			m_border_color = c;
+		}
+
+
+		TextBox::TextBox()
+		{
+			m_type = WidgetType::TextBoxType;
+		}
+
+		void TextBox::SetColor(Color c)
+		{
+			m_bg_default_color = c;
+		}
+
+		void TextBox::SetTextColor(Color c)
+		{
+			m_fg_default_color = c;
+		}
+
+		void TextBox::SetActiveColor(Color c)
+		{
+			m_bg_active_color = c;
+		}
+
+		void TextBox::SetWidth(WidgetSize w)
+		{
+			m_width = w;
+		}
+
+		void TextBox::SetHeight(WidgetSize w)
+		{
+			m_height = w;
+		}
+
+		std::string const& TextBox::GetText()
+		{
+			return m_text;
+		}
+
+		void TextBox::SetText(std::string text)
+		{
+			m_text = text;
+		}
+
+
+		void TextBox::OnChar(KeyboardEvent e)
+		{
+			static int last_width = 1;
+
+			printf("%s\n", m_text.data());
+			if (e.key_press == 8)
+			{
+
+				while (!m_text.empty())
+				{
+					char c = m_text.back();
+					if (! (c & 0b10000000))
+					{
+						m_text.pop_back();
+						return;
+					}
+					else if (!(c &0b01000000))
+					{
+						m_text.pop_back();
+					}
+					else if (c & 0b01000000)
+					{
+						m_text.pop_back();
+						return;
+					}
+
+					else assert(false);
+				}
+				return;
+			}
+
+			char* p = (char*)&e.key_press;
+			for (int i = 0; i < e.key_length; ++i)
+			{
+				m_text.push_back(p[i]);
+			}
+			last_width = e.key_length;
+		}
+
+
+
+		void TextBox::SetOnChar(std::function<void(void*, int)> fn)
+		{
+			m_on_char_input_fn = fn;
+		}
+
+
+
+		Layers::Layers()
+		{
+			m_type = WidgetType::LayersType;
+		}
+
+		void Layers::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
+		{
+			LayoutInfo info = {};
+			info.x = c.x;
+			info.y = c.y;
+			info.width = 0;
+			info.height = 0;
+
+			int x = 0;
+			int y = 0;
+
+			info.width = FindMaxSize(m_width, c.max_width);
+			info.height = FindMaxSize(m_height, c.max_height);
+
+			LayoutConstraint layer_constraint = {
+			  .max_width = info.width,
+			  .max_height = info.height,
+			  .x = c.x,
+			  .y = c.y
+			};
+
+			for (auto i = m_layers.begin(); i != m_layers.end(); ++i)
+			{
+				i->second->Layout(layer_constraint, interaction_context);
+			}
+
+			logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+			m_layout = info;
+		}
+
+		LayoutInfo& Layers::GetLayout()
+		{
+			return m_layout;
+		}
+
+		void Layers::SetLayer(int layer, std::shared_ptr<Widget> w)
+		{
+			m_layers[layer] = w;
+		}
+
+		void Layers::PopLayer()
+		{
+			if (m_layers.size() <= 1) return;
+			auto nit = m_layers.begin();
+			nit++;
+			m_layers.erase(nit, m_layers.end());
+		}
+
+		int Layers::GetLevel()
+		{
+			return m_layers.rbegin()->first;
+		}
+
+		Widget* Layers::HitTest(int x, int y)
+		{
+			int number_of_layers = m_layers.size();
+			if (number_of_layers > 0)
+			{
+				Widget* hit = m_layers.rbegin()->second->HitTest(x, y);
+				if (hit) return hit;
+			}
+
+			return this;
+		}
+
+		void Layers::OnClick()
+		{
+			auto it = m_layers.lower_bound(1);
+			m_layers.erase(it, m_layers.end());
+		}
+
+		int Layers::FindMaxSize(WidgetSize size, int max_size)
+		{
+			switch (size.type)
+			{
+			case WidgetSize::Type::Undefined:
+			{
+				return max_size;
+			} break;
+			case WidgetSize::Type::Ratio:
+			{
+				return max_size * size.value;
+			} break;
+			case WidgetSize::Type::Percent:
+			{
+				return max_size * size.value / 100;
+			} break;
+			case WidgetSize::Type::Fixed:
+			{
+				return size.value > max_size ? max_size : size.value;
+			} break;
+			default:
+			{
+				std::unreachable();
+			} break;
+			}
+			return 0;
+		}
+
+
+
+		FileSelector::FileSelector()
+		{
+			m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
+			VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
+			container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.6));
+			container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.6));
+			container.SetId("FileSelector>Container");
+		}
+
+		void FileSelector::SetPath(std::string path)
+		{
+			if (m_current_path != path)
+			{
+				auto container = dynamic_cast<VerticalContainer*>(m_container.get());
+				container->Clear();
+
+				m_current_path = path;
+				m_file_names = ReadPath(m_current_path);
+				std::sort(m_file_names.begin(), m_file_names.end());
+
+				for (auto item : m_file_names)
+				{
+					auto btnw = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
+					auto btn = dynamic_cast<Button*>(btnw.get());
+					btn->SetText(item);
+					btn->SetId(item);
+					btn->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+					btn->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
+					btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
+					btn->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+					btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.0));
+					btn->SetOnClicked(std::bind(&FileSelector::PathButtonSelect, this, btn, std::placeholders::_1));
+
+					container->PushBack(btnw);
+				}
+			}
+		}
+
+		void FileSelector::SetWidth(WidgetSize size)
+		{
+			m_width = size;
+		}
+		void FileSelector::SetHeight(WidgetSize size)
+		{
+			m_height = size;
+		}
+
+		LayoutInfo& FileSelector::GetLayout()
+		{
+			return m_layout;
+		}
+
+		void FileSelector::Layout(LayoutConstraint const& layout, InteractionContext& interaction_context)
+		{
+			m_layout.x = layout.x;
+			m_layout.y = layout.y;
+			m_layout.width = FindFixSize(m_width, layout.max_width);
+			m_layout.height = FindFixSize(m_height, layout.max_height);
+
+
+			// get some space for padding
+			int child_max_width = m_layout.width * 0.6;
+			int child_max_height = m_layout.height * 0.6;
+			int x = (m_layout.width - child_max_width) / 2;
+			int y = (m_layout.height - child_max_height) / 2;
+
+
+
+			LayoutConstraint constraint{
+			  .max_width = child_max_width,
+			  .max_height = child_max_height,
+			  .x = x,
+			  .y = y,
+			};
+
+			m_container.get()->Layout(constraint, interaction_context);
+		}
+
+		Widget* FileSelector::HitTest(int x, int y)
+		{
+			if (IsLayoutInfoValid(m_layout))
+			{
+				if (x < m_layout.x || x >(m_layout.x + m_layout.width) ||
+					y < m_layout.y || y >(m_layout.y + m_layout.height))
+					return NULL;
+
+				else
+				{
+					x -= m_layout.x;
+					y -= m_layout.y;
+					Widget* child_hit = m_container->HitTest(x, y);
+					return child_hit ? child_hit : this;
+				}
+			}
+			return this;
+		}
+
+		std::vector<std::string> FileSelector::ReadPath(std::string p)
+		{
+			if (p.empty()) return {};
+
+			return platform::ReadPath(p);
+		}
+
+		void FileSelector::OnClick()
+		{
+			OnDestroyed("");
+		}
+
+		void FileSelector::PathButtonSelect(Widget* w, void*)
+		{
+			if (!w) return;
+			auto widget = (Widget*)w;
+
+			auto& button = dynamic_cast<Button&>(*widget);
+
+			std::string filename = button.GetText();
+			std::string newpath = platform::AppendSegment(m_current_path, filename);
+
+			if (platform::IsFile(newpath))
+			{
+				VerticalContainer* container = dynamic_cast<VerticalContainer*>(m_container.get());
+				for (auto it = container->m_children.begin();
+					it != container->m_children.end();
+					it++)
+				{
+					auto btn = dynamic_cast<Button*>(it->get());
+					if (!btn) continue;
+
+					btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
+				}
+				button.SetColor(Color(0.0, 0.3, 0.6, 1.));
+			}
+			else if (platform::IsDirectory(newpath))
+			{
+				SetPath(newpath);
+			}
+		}
+
+		void FileSelector::OnDestroyed(std::string s)
+		{
+			if (s.empty())
+				m_on_destroyed_fn(this, s);
+
+		}
+
+		void FileSelector::SetOnDestroyed(std::function<void(void*, std::string)> fn)
+		{
+			m_on_destroyed_fn = fn;
+		}
 
 		Application::Application()
 		{
@@ -860,6 +912,7 @@ namespace application
 			bool mouse_double_clicked = false;
 			bool mouse_down = false;
 			bool text_event = false;
+			bool key_pressed = false;
 			bool shortcut_event = false;
 			int  mouse_dragged_dx = 0;
 			int  mouse_dragged_dy = 0;
@@ -918,10 +971,16 @@ namespace application
 				}
 
 				interacting_widget = m_widget->HitTest(e.x, e.y);
+				m_interaction_context.active = interacting_widget;
 			}
 			else if (event->type == UserEvent::Type::KeyboardEventType)
 			{
+				key_pressed = true;
 				KeyboardEvent e = event->keyboard_event;
+				if (key_pressed && m_interaction_context.active)
+				{
+					m_interaction_context.active->OnChar(e);
+				}
 			}
 
 			// mouse_click: check duration < hold_duration
@@ -934,6 +993,7 @@ namespace application
 			{
 				interacting_widget->OnClick();
 			}
+
 
 		}
 
@@ -1003,25 +1063,25 @@ namespace application
 
 			auto file_opener = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::FileSelectorType));
 			auto& fo = *dynamic_cast<FileSelector*>(file_opener.get());
-			
+
 			fo.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
 			fo.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
 			fo.SetPath(m_application_path);
 			fo.SetId("FileSelector");
-      fo.SetOnDestroyed(std::bind(&Application::FileSelectionFinished, this, file_opener.get(), std::placeholders::_1, std::placeholders::_2));
-			
+			fo.SetOnDestroyed(std::bind(&Application::FileSelectionFinished, this, file_opener.get(), std::placeholders::_1, std::placeholders::_2));
+
 
 			layers.SetLayer(level + 1, file_opener);
 
 		}
 
-    void Application::FileSelectionFinished(Widget*, void*, std::string file) 
-    {
-      printf("FIle open : %s\n", file.c_str());
+		void Application::FileSelectionFinished(Widget*, void*, std::string file)
+		{
+			printf("FIle open : %s\n", file.c_str());
 
 			Layers& layers = *dynamic_cast<Layers*>(m_widget);
-      layers.PopLayer();
-    }
+			layers.PopLayer();
+		}
 
 	} // namespace gui
 

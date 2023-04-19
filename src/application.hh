@@ -138,6 +138,8 @@ namespace application
 			return 0;
 		}
 
+		int FindMaxSize(WidgetSize size, int max_size);
+
 		struct LayoutConstraint
 		{
 			int max_width = 0;
@@ -177,40 +179,43 @@ namespace application
 
 		struct Widget
 		{
-			std::string m_id = "Invalid";
-			WidgetType m_type = WidgetType::InvalidType;
 
-			Widget();
+			explicit Widget(WidgetType);
+      explicit Widget(Widget const& other);
 			virtual ~Widget();
 			virtual void Layout(LayoutConstraint const&, InteractionContext&) = 0;
 			virtual void Draw(platform::RenderContext*, InteractionContext) = 0;
 			virtual Widget* HitTest(int, int) = 0;
-			virtual LayoutInfo& GetLayout() = 0;
 
 			virtual void OnClick();
       virtual void OnChar(KeyboardEvent);
 			virtual std::string const& GetId();
-			virtual void SetId(std::optional<std::string> str = std::nullopt);
-			virtual WidgetType GetType();
+			void SetId(std::string id);
+      void SetId();
+			WidgetType GetType();
+
+      virtual void SetWidth(WidgetSize w);
+      virtual void SetHeight(WidgetSize h);
+      virtual LayoutInfo& GetLayout();
+
+			WidgetType m_type = WidgetType::InvalidType;
+			std::string m_id = "Invalid";
+      WidgetSize m_width = {};
+      WidgetSize m_height = {};
+      LayoutInfo m_layout = {};
 		};
 
 
 		struct Rectangle : public Widget
 		{
-			WidgetSize m_width = WidgetSize();
-			WidgetSize m_height = WidgetSize();
 			Color m_bg_default_color = {};
 			Color m_bg_active_color = {};
 			bool  m_accept_dragging = true;
-			LayoutInfo m_layout;
 
 			Rectangle();
 			void SetColor(Color c);
 			void SetActiveColor(Color c);
-			void SetWidth(WidgetSize w);
-			void SetHeight(WidgetSize w);
 			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
-			virtual LayoutInfo& GetLayout() override;
 			virtual Widget* HitTest(int x, int y) override;
 		};
 
@@ -218,21 +223,12 @@ namespace application
 		{
 			std::vector<std::shared_ptr<Widget>> m_children;
 
-			WidgetSize m_width = {};
-			WidgetSize m_height = {};
-			LayoutInfo m_layout = {};
-
-
 			VerticalContainer();
 
 			void PushBack(Widget* w);
 			void PushBack(std::shared_ptr<Widget> w);
 			void Clear();
-			void SetWidth(WidgetSize w);
-			void SetHeight(WidgetSize w);
 			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
-			virtual LayoutInfo& GetLayout() override;
-			int FindMaxSize(WidgetSize size, int max_size);
 			virtual Widget* HitTest(int x, int y) override;
 
 		};
@@ -241,23 +237,15 @@ namespace application
 		{
       std::vector<std::shared_ptr<Widget>> m_children;
 
-			WidgetSize m_width = {};
-			WidgetSize m_height = {};
-			LayoutInfo m_layout = {};
-
 			HorizontalContainer();
 			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
 		  Widget* HitTest(int x, int y) override;
-			virtual LayoutInfo& GetLayout() override;
-
-			void SetWidth(WidgetSize w);
-			void SetHeight(WidgetSize w);
 			void PushBack(Widget* w);
-			int FindMaxSize(WidgetSize size, int max_size);
+      void PushBack(std::shared_ptr<Widget> w);
 
 		};
 
-		struct Button : public Rectangle
+		struct Button : public Widget
 		{
 			std::string m_text;
 			Color m_bg_default_color;
@@ -273,19 +261,24 @@ namespace application
 			void SetActiveColor(Color c);
 			void SetTextColor(Color c);
 			void SetTextActiveColor(Color c);
-			void SetWidth(WidgetSize w);
-			void SetHeight(WidgetSize w);
 			void SetText(std::string text);
 			std::string GetText();
 			void SetOnClicked(std::function<void(void*)> fn);
 			void OnClick() override;
 			void SetBorderColor(Color c);
+			Widget* HitTest(int, int) override;
+
+			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
 		};
 
-		struct TextBox : public Rectangle
+		struct TextBox : public Widget
 		{
 			std::string m_text;
+			Color m_bg_default_color;
 			Color m_fg_default_color;
+			Color m_bg_active_color;
+			Color m_fg_active_color;
+			Color m_border_color;
 
       std::function<void(void*, int)> m_on_char_input_fn;
 
@@ -294,33 +287,28 @@ namespace application
 			void SetColor(Color c);
 			void SetTextColor(Color c);
 			void SetActiveColor(Color c);
-			void SetWidth(WidgetSize w);
-			void SetHeight(WidgetSize w);
 			std::string const& GetText();
 			void SetText(std::string text);
       void OnChar(KeyboardEvent e) override;
       void SetOnChar(std::function<void(void*, int)> fn);
+			virtual void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
+      virtual Widget* TextBox::HitTest(int, int) override;
 		};
 
 
 		struct Layers : public Widget
 		{
 			std::map<int, std::shared_ptr<Widget>> m_layers;
-			LayoutInfo m_layout;
-			WidgetSize m_width;
-			WidgetSize m_height;
 
 			Layers();
 
 			void Layout(LayoutConstraint const& c, InteractionContext& interaction_context) override;
 			Widget* HitTest(int x, int y) override;
 			void OnClick() override;
-			LayoutInfo& GetLayout() override;
 
 			void SetLayer(int layer, std::shared_ptr<Widget> w);
 			void PopLayer();
 			int GetLevel();
-			int FindMaxSize(WidgetSize size, int max_size);
 		};
 
 		struct FileSelector : public Widget
@@ -329,21 +317,10 @@ namespace application
 			std::vector<std::string> m_file_names;
 
 			std::shared_ptr<Widget> m_container;
-      std::shared_ptr<Widget> m_confirm_button;
-      std::shared_ptr<Widget> m_cancel_button;
-      std::shared_ptr<Widget> m_filepath_textbox;
-
-			WidgetSize m_width;
-			WidgetSize m_height;
-			LayoutInfo m_layout;
 
 			std::function<void(void*, std::string)> m_on_destroyed_fn;
 
       FileSelector();
-
-			void SetWidth(WidgetSize size);
-			void SetHeight(WidgetSize size);
-			LayoutInfo& GetLayout() override;
 
 			void Layout(LayoutConstraint const& layout, InteractionContext& interaction_context) override;
 			Widget* HitTest(int x, int y) override;

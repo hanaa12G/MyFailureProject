@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <functional>
+#include <set>
+#include <sstream>
 
 
 namespace application
@@ -9,6 +11,21 @@ namespace application
 
 	namespace gui
 	{
+    std::set<std::string> g_id_list;
+
+    std::string AddUniqueId(std::string id)
+    {
+      std::cout << "Add: " << id << std::endl;
+      if (g_id_list.find(id) != g_id_list.end())
+        throw std::runtime_error("Logic error: Two widget has the same id: " + id);
+      g_id_list.insert(id);
+      return id;
+    }
+
+    void RemoveUniqueId(std::string id)
+    {
+      g_id_list.erase(id);
+    }
 
 		Widget* FindId(Widget* root_widget, std::string const& id)
 		{
@@ -54,14 +71,52 @@ namespace application
 			return NULL;
 		}
 
-
-		Widget::Widget()
+		int FindMaxSize(WidgetSize size, int max_size)
 		{
+			switch (size.type)
+			{
+			case WidgetSize::Type::Undefined:
+			{
+				return max_size;
+			} break;
+			case WidgetSize::Type::Ratio:
+			{
+				return max_size * size.value;
+			} break;
+			case WidgetSize::Type::Percent:
+			{
+				return max_size * size.value / 100;
+			} break;
+			case WidgetSize::Type::Fixed:
+			{
+				return size.value > max_size ? max_size : size.value;
+			} break;
+			default:
+			{
+				std::unreachable();
+			} break;
+			}
+			return 0;
+		}
+
+		Widget::Widget(WidgetType type)
+    : m_type { type },
+      m_id   { "" },
+      m_width { WidgetSize::Type::Undefined, 0},
+      m_height { WidgetSize::Type::Undefined, 0},
+      m_layout {}
+		{
+      assert(type != WidgetType::InvalidType);
 			SetId();
 		}
 
+    Widget::Widget(const Widget& other)
+    {
+    }
+
 		Widget::~Widget()
 		{
+      RemoveUniqueId(m_id);
 		}
 
 		std::string const& Widget::GetId()
@@ -69,15 +124,39 @@ namespace application
 			return m_id;
 		}
 
-		void Widget::SetId(std::optional<std::string> str)
+		void Widget::SetId(std::string s)
 		{
-			m_id = str.value_or(std::to_string((long)this));
-		}
+      if (!m_id.empty())
+        RemoveUniqueId(m_id);
+			m_id = AddUniqueId(s);
+    }
+
+    void Widget::SetId()
+    {
+      std::stringstream ss;
+      ss << m_type << ":" << this;
+      m_id = AddUniqueId(ss.rdbuf()->str());
+    }
 
 		WidgetType Widget::GetType()
 		{
 			return m_type;
 		}
+
+    void Widget::SetWidth(WidgetSize w)
+    {
+      m_width = w;
+    }
+
+    void Widget::SetHeight(WidgetSize h)
+    {
+      m_height = h;
+    }
+
+    LayoutInfo& Widget::GetLayout()
+    {
+      return m_layout;
+    }
 
 		void Widget::OnClick()
 		{
@@ -89,9 +168,9 @@ namespace application
 
 
 
-		Rectangle::Rectangle()
+		Rectangle::Rectangle(): 
+      Widget(WidgetType::RectangleType)
 		{
-			m_type = WidgetType::RectangleType;
 		}
 
 		void Rectangle::SetColor(Color c)
@@ -102,15 +181,6 @@ namespace application
 		void Rectangle::SetActiveColor(Color c)
 		{
 			m_bg_active_color = c;
-		}
-
-		void Rectangle::SetWidth(WidgetSize w)
-		{
-			m_width = w;
-		}
-		void Rectangle::SetHeight(WidgetSize w)
-		{
-			m_height = w;
 		}
 
 		void Rectangle::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
@@ -134,13 +204,6 @@ namespace application
 			m_layout = info;
 		}
 
-		LayoutInfo& Rectangle::GetLayout()
-		{
-			return m_layout;
-		}
-
-
-
 		Widget* Rectangle::HitTest(int x, int y)
 		{
 			if (IsLayoutInfoValid(m_layout))
@@ -155,11 +218,9 @@ namespace application
 		}
 
 
-
-
 		VerticalContainer::VerticalContainer()
+      : Widget(WidgetType::VerticalContainerType)
 		{
-			m_type = WidgetType::VerticalContainerType;
 		}
 
 		void VerticalContainer::PushBack(Widget* w)
@@ -174,16 +235,6 @@ namespace application
 		void VerticalContainer::Clear()
 		{
 			m_children.clear();
-		}
-
-		void VerticalContainer::SetWidth(WidgetSize w)
-		{
-			m_width = w;
-		}
-
-		void VerticalContainer::SetHeight(WidgetSize w)
-		{
-			m_height = w;
 		}
 
 		void VerticalContainer::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
@@ -228,40 +279,6 @@ namespace application
 			m_layout = info;
 		}
 
-
-		LayoutInfo& VerticalContainer::GetLayout()
-		{
-			return m_layout;
-		}
-
-		int VerticalContainer::FindMaxSize(WidgetSize size, int max_size)
-		{
-			switch (size.type)
-			{
-			case WidgetSize::Type::Undefined:
-			{
-				return max_size;
-			} break;
-			case WidgetSize::Type::Ratio:
-			{
-				return max_size * size.value;
-			} break;
-			case WidgetSize::Type::Percent:
-			{
-				return max_size * size.value / 100;
-			} break;
-			case WidgetSize::Type::Fixed:
-			{
-				return size.value > max_size ? max_size : size.value;
-			} break;
-			default:
-			{
-				std::unreachable();
-			} break;
-			}
-			return 0;
-		}
-
 		Widget* VerticalContainer::HitTest(int x, int y)
 		{
 			if (!IsLayoutInfoValid(m_layout))
@@ -298,23 +315,18 @@ namespace application
 
 
 		HorizontalContainer::HorizontalContainer()
+    : Widget(WidgetType::HorizontalContainerType)
 		{
-			m_type = WidgetType::HorizontalContainerType;
-		}
-
-		void HorizontalContainer::SetWidth(WidgetSize w)
-		{
-			m_width = w;
-		}
-
-		void HorizontalContainer::SetHeight(WidgetSize w)
-		{
-			m_height = w;
 		}
 
 		void HorizontalContainer::PushBack(Widget* w)
 		{
 			m_children.push_back(std::shared_ptr<Widget>(w));
+		}
+
+		void HorizontalContainer::PushBack(std::shared_ptr<Widget> w)
+		{
+			m_children.push_back(w);
 		}
 
 		void HorizontalContainer::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
@@ -358,39 +370,6 @@ namespace application
 			m_layout = info;
 		}
 
-		LayoutInfo& HorizontalContainer::GetLayout()
-		{
-			return m_layout;
-		}
-
-		int HorizontalContainer::FindMaxSize(WidgetSize size, int max_size)
-		{
-			switch (size.type)
-			{
-			case WidgetSize::Type::Undefined:
-			{
-				return max_size;
-			} break;
-			case WidgetSize::Type::Ratio:
-			{
-				return max_size * size.value;
-			} break;
-			case WidgetSize::Type::Percent:
-			{
-				return max_size * size.value / 100;
-			} break;
-			case WidgetSize::Type::Fixed:
-			{
-				return size.value > max_size ? max_size : size.value;
-			} break;
-			default:
-			{
-				std::unreachable();
-			} break;
-			}
-			return 0;
-		}
-
 		Widget* HorizontalContainer::HitTest(int x, int y)
 		{
 			if (!IsLayoutInfoValid(m_layout))
@@ -424,8 +403,12 @@ namespace application
 
 
 		Button::Button()
+    : Widget(WidgetType::ButtonType)
 		{
-			m_type = WidgetType::ButtonType;
+			SetColor(Color(1.0, 1.0, 0.0, 1.0));
+			SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
+			SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+			SetTextActiveColor(Color(0.0, 0.0, 0.0, 1.0));
 		}
 
 		void Button::SetColor(Color c)
@@ -447,15 +430,6 @@ namespace application
 			m_fg_active_color = c;
 		}
 
-		void Button::SetWidth(WidgetSize w)
-		{
-			m_width = w;
-		}
-
-		void Button::SetHeight(WidgetSize w)
-		{
-			m_height = w;
-		}
 		void Button::SetText(std::string text)
 		{
 			m_text = text;
@@ -481,10 +455,46 @@ namespace application
 			m_border_color = c;
 		}
 
+    void Button::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
+    {
+			LayoutInfo info = {};
+			info.x = c.x;
+			info.y = c.y;
+
+			info.width = FindFixSize(m_width, c.max_width);
+			info.height = FindFixSize(m_height, c.max_height);
+
+			if (interaction_context.dragging == this)
+			{
+				info.x = interaction_context.dragging_dx;
+				info.y = interaction_context.dragging_dy;
+			}
+
+			logger::Debug("INFO (Button): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+			m_layout = info;
+    }
+
+    Widget* Button::HitTest(int x, int y)
+    {
+			if (IsLayoutInfoValid(m_layout))
+			{
+				if (x > m_layout.x && x < m_layout.x + m_layout.width &&
+					y > m_layout.y && y < m_layout.y + m_layout.height)
+				{
+					return this;
+				}
+			}
+			return NULL;
+    }
 
 		TextBox::TextBox()
+    : Widget(WidgetType::TextBoxType)
 		{
-			m_type = WidgetType::TextBoxType;
+
+			SetColor(Color(1.0, 1.0, 1.0, 1.0));
+			SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
+			SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
 		}
 
 		void TextBox::SetColor(Color c)
@@ -500,16 +510,6 @@ namespace application
 		void TextBox::SetActiveColor(Color c)
 		{
 			m_bg_active_color = c;
-		}
-
-		void TextBox::SetWidth(WidgetSize w)
-		{
-			m_width = w;
-		}
-
-		void TextBox::SetHeight(WidgetSize w)
-		{
-			m_height = w;
 		}
 
 		std::string const& TextBox::GetText()
@@ -569,9 +569,44 @@ namespace application
 			m_on_char_input_fn = fn;
 		}
 
+		void TextBox::Layout(LayoutConstraint const& c, InteractionContext& interaction_context)
+		{
+			LayoutInfo info = {};
+			info.x = c.x;
+			info.y = c.y;
+
+
+			info.width = FindFixSize(m_width, c.max_width);
+			info.height = FindFixSize(m_height, c.max_height);
+
+			if (interaction_context.dragging == this)
+			{
+				info.x = interaction_context.dragging_dx;
+				info.y = interaction_context.dragging_dy;
+			}
+
+			logger::Debug("INFO (TextBox): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
+
+			m_layout = info;
+		}
+
+    Widget* TextBox::HitTest(int x, int y)
+    {
+			if (IsLayoutInfoValid(m_layout))
+			{
+				if (x > m_layout.x && x < m_layout.x + m_layout.width &&
+					y > m_layout.y && y < m_layout.y + m_layout.height)
+				{
+					return this;
+				}
+			}
+			return NULL;
+    }
+
 
 
 		Layers::Layers()
+    : Widget(WidgetType::LayersType)
 		{
 			m_type = WidgetType::LayersType;
 		}
@@ -605,11 +640,6 @@ namespace application
 			logger::Debug("INFO (Layers): x=%d, y=%d, width=%d, height=%d", info.x, info.y, info.width, info.height);
 
 			m_layout = info;
-		}
-
-		LayoutInfo& Layers::GetLayout()
-		{
-			return m_layout;
 		}
 
 		void Layers::SetLayer(int layer, std::shared_ptr<Widget> w)
@@ -648,51 +678,70 @@ namespace application
 			m_layers.erase(it, m_layers.end());
 		}
 
-		int Layers::FindMaxSize(WidgetSize size, int max_size)
-		{
-			switch (size.type)
-			{
-			case WidgetSize::Type::Undefined:
-			{
-				return max_size;
-			} break;
-			case WidgetSize::Type::Ratio:
-			{
-				return max_size * size.value;
-			} break;
-			case WidgetSize::Type::Percent:
-			{
-				return max_size * size.value / 100;
-			} break;
-			case WidgetSize::Type::Fixed:
-			{
-				return size.value > max_size ? max_size : size.value;
-			} break;
-			default:
-			{
-				std::unreachable();
-			} break;
-			}
-			return 0;
-		}
-
-
-
 		FileSelector::FileSelector()
+    : Widget(WidgetType::FileSelectorType)
 		{
+
 			m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
+
+
 			VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
-			container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-			container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.6));
-			container.SetId("FileSelector>Container");
+			container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+			container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+			container.SetId("FileSelector::Container");
+
+      
+      auto file_list_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
+      VerticalContainer* file_list = dynamic_cast<VerticalContainer*>(file_list_ptr.get());
+      file_list->SetId("FileSelector::FileList");
+      file_list->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+      file_list->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.8));
+
+      auto horizontal_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::HorizontalContainerType));
+      auto bottom_row = dynamic_cast<HorizontalContainer*>(horizontal_container.get());
+
+      auto filepath_textbox_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::TextBoxType));
+      auto confirm_button_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
+      auto cancel_button_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
+
+
+      filepath_textbox_ptr->SetId("FileSelector::TextBox");
+      filepath_textbox_ptr->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.8));
+      filepath_textbox_ptr->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+
+
+      auto confirm_button = dynamic_cast<Button*>(confirm_button_ptr.get());
+      confirm_button->SetId("FileSelector::ConfirmButton");
+      confirm_button->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.1));
+      confirm_button->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+      confirm_button->SetText("Open");
+
+
+      auto cancel_button = dynamic_cast<Button*>(cancel_button_ptr.get());
+      cancel_button->SetId("FileSelector::CancelButton");
+      cancel_button->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.1));
+      cancel_button->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+      cancel_button->SetText("Cancel");
+
+      bottom_row->PushBack(filepath_textbox_ptr);
+      bottom_row->PushBack(cancel_button_ptr);
+      bottom_row->PushBack(confirm_button_ptr);
+
+
+      container.PushBack(file_list_ptr);
+      container.PushBack(horizontal_container);
+
 		}
 
 		void FileSelector::SetPath(std::string path)
 		{
+      auto file_path_textbox = dynamic_cast<TextBox*>(FindId(m_container.get(), "FileSelector::TextBox"));
+      if (!file_path_textbox) return;
+
 			if (m_current_path != path)
 			{
-				auto container = dynamic_cast<VerticalContainer*>(m_container.get());
-				container->Clear();
+				auto file_list = dynamic_cast<VerticalContainer*>(FindId(m_container.get(), "FileSelector::FileList"));
+				file_list->Clear();
 
 				m_current_path = path;
 				m_file_names = ReadPath(m_current_path);
@@ -711,23 +760,11 @@ namespace application
 					btn->SetBorderColor(Color(0.7, 0.7, 0.7, 1.0));
 					btn->SetOnClicked(std::bind(&FileSelector::PathButtonSelect, this, btn, std::placeholders::_1));
 
-					container->PushBack(btnw);
+					file_list->PushBack(btnw);
 				}
 			}
-		}
 
-		void FileSelector::SetWidth(WidgetSize size)
-		{
-			m_width = size;
-		}
-		void FileSelector::SetHeight(WidgetSize size)
-		{
-			m_height = size;
-		}
-
-		LayoutInfo& FileSelector::GetLayout()
-		{
-			return m_layout;
+      file_path_textbox->SetText(path);
 		}
 
 		void FileSelector::Layout(LayoutConstraint const& layout, InteractionContext& interaction_context)
@@ -740,9 +777,9 @@ namespace application
 
 			// get some space for padding
 			int child_max_width = m_layout.width * 0.6;
-			int child_max_height = m_layout.height * 0.6;
+			int child_max_height = m_layout.height;
 			int x = (m_layout.width - child_max_width) / 2;
-			int y = (m_layout.height - child_max_height) / 2;
+			int y = 0;
 
 
 
@@ -754,6 +791,17 @@ namespace application
 			};
 
 			m_container.get()->Layout(constraint, interaction_context);
+      LayoutInfo container_layout = m_container.get()->m_layout;
+
+      x = container_layout.x;
+      y = container_layout.y + container_layout.height;
+
+      LayoutConstraint textbox_constraint {
+        .max_width = child_max_width,
+        .max_height = child_max_height - container_layout.height,
+        .x = x,
+        .y = y
+      };
 		}
 
 		Widget* FileSelector::HitTest(int x, int y)
@@ -866,10 +914,6 @@ namespace application
 			button->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
 			button->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
 			button->SetText("Save");
-			button->SetColor(Color(1.0, 1.0, 0.0, 1.0));
-			button->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
-			button->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
-			button->SetTextActiveColor(Color(0.0, 0.0, 0.0, 1.0));
 			button->SetOnClicked(std::bind(&Application::SaveButtonClicked, this, button, std::placeholders::_1));
 			button_horizontal_list->PushBack(button);
 
@@ -879,10 +923,6 @@ namespace application
 			button2->SetWidth(WidgetSize(WidgetSize::Type::Percent, 20));
 			button2->SetHeight(WidgetSize(WidgetSize::Type::Percent, 100));
 			button2->SetText("Open");
-			button2->SetColor(Color(1.0, 1.0, 0.0, 1.0));
-			button2->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
-			button2->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
-			button2->SetTextActiveColor(Color(0.0, 0.0, 0.0, 1.0));
 			button2->SetOnClicked(std::bind(&Application::OpenButtonClicked, this, button2, std::placeholders::_1));
 			button_horizontal_list->PushBack(button2);
 
@@ -893,9 +933,6 @@ namespace application
 			textbox->SetId("TextBox");
 			textbox->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1));
 			textbox->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.8));
-			textbox->SetColor(Color(1.0, 1.0, 1.0, 1.0));
-			textbox->SetTextColor(Color(0.0, 0.0, 0.0, 1.0));
-			textbox->SetActiveColor(Color(1.0, 1.0, 1.0, 1.0));
 			vertical_container->PushBack(textbox);
 
 

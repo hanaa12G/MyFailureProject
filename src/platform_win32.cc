@@ -1074,20 +1074,11 @@ namespace logger
 
 int main()
 {
-  try
-  {
-    logger::Init();
-    MainWindow::Register();
-    MainWindow t = MainWindow::Instance();
+  logger::Init();
+  MainWindow::Register();
+  MainWindow t = MainWindow::Instance();
 
-    t.Show();
-  }
-  catch (std::exception e)
-  {
-    printf("Exception: %s\n", e.what());
-    printf("last error %d\n", GetLastError());
-    return 1;
-  }
+  t.Show();
   return 0;
 }
 

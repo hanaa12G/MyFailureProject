@@ -147,6 +147,9 @@ namespace application
 
 			int x = 0;
 			int y = 0;
+
+      bool reverse_horizontally = false;
+      bool reverse_vertically = false;
 		};
 
 		struct LayoutInfo
@@ -316,7 +319,8 @@ namespace application
 			std::string m_current_path;
 			std::vector<std::string> m_file_names;
 
-			std::shared_ptr<Widget> m_container;
+			std::shared_ptr<Widget> m_file_list;
+      std::shared_ptr<Widget> m_action_row;
 
 			std::function<void(void*, std::string)> m_on_destroyed_fn;
 

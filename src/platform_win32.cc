@@ -457,7 +457,8 @@ namespace platform
 
         render_context->render_target->SetTransform(my_translation);
 
-        m_container->Draw(render_context, interaction_context);
+        m_file_list->Draw(render_context, interaction_context);
+        m_action_row->Draw(render_context, interaction_context);
         
         render_context->render_target->SetTransform(parent_translation);
 
@@ -956,7 +957,7 @@ public:
 
   void OnKeyboardEvent(wchar_t c)
   {
-    printf("Char: %llx %c\n", c, (wchar_t) c);
+    printf("Char: %lx %c\n", c, (wchar_t) c);
 
     application::gui::KeyboardEvent e;
 

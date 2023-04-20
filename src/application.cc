@@ -99,6 +99,7 @@ namespace application
 			return 0;
 		}
 
+
 		Widget::Widget(WidgetType type)
     : m_type { type },
       m_id   { "" },
@@ -681,66 +682,51 @@ namespace application
 		FileSelector::FileSelector()
     : Widget(WidgetType::FileSelectorType)
 		{
+      m_file_list = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
+      auto file_list = dynamic_cast<VerticalContainer*>(m_file_list.get());
+      file_list->SetId(GetId() + ":FileList");
 
-			m_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
-
-
-			VerticalContainer& container = dynamic_cast<VerticalContainer&>(*m_container);
-			container.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
-			container.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
-			container.SetId("FileSelector::Container");
-
-      
-      auto file_list_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::VerticalContainerType));
-      VerticalContainer* file_list = dynamic_cast<VerticalContainer*>(file_list_ptr.get());
-      file_list->SetId("FileSelector::FileList");
-      file_list->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
-      file_list->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 0.8));
-
-      auto horizontal_container = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::HorizontalContainerType));
-      auto bottom_row = dynamic_cast<HorizontalContainer*>(horizontal_container.get());
+      m_action_row = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::HorizontalContainerType));
+      auto action_row = dynamic_cast<HorizontalContainer*>(m_action_row.get());
+      action_row->SetId(GetId() + ":ActionRow");
 
       auto filepath_textbox_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::TextBoxType));
       auto confirm_button_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
       auto cancel_button_ptr = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
 
 
-      filepath_textbox_ptr->SetId("FileSelector::TextBox");
+      filepath_textbox_ptr->SetId(m_action_row->GetId() + "::FileNameTextBox");
       filepath_textbox_ptr->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.8));
-      filepath_textbox_ptr->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+      filepath_textbox_ptr->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 1));
 
 
       auto confirm_button = dynamic_cast<Button*>(confirm_button_ptr.get());
-      confirm_button->SetId("FileSelector::ConfirmButton");
+      confirm_button->SetId(m_action_row->GetId() + "::ConfirmButton");
       confirm_button->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.1));
-      confirm_button->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+      confirm_button->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
       confirm_button->SetText("Open");
 
 
       auto cancel_button = dynamic_cast<Button*>(cancel_button_ptr.get());
-      cancel_button->SetId("FileSelector::CancelButton");
+      cancel_button->SetId(m_action_row->GetId() + ":CancelButton");
       cancel_button->SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.1));
-      cancel_button->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
+      cancel_button->SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1));
       cancel_button->SetText("Cancel");
 
-      bottom_row->PushBack(filepath_textbox_ptr);
-      bottom_row->PushBack(cancel_button_ptr);
-      bottom_row->PushBack(confirm_button_ptr);
-
-
-      container.PushBack(file_list_ptr);
-      container.PushBack(horizontal_container);
-
+      action_row->PushBack(filepath_textbox_ptr);
+      action_row->PushBack(confirm_button_ptr);
+      action_row->PushBack(cancel_button_ptr);
+      
 		}
 
 		void FileSelector::SetPath(std::string path)
 		{
-      auto file_path_textbox = dynamic_cast<TextBox*>(FindId(m_container.get(), "FileSelector::TextBox"));
-      if (!file_path_textbox) return;
+      auto file_path_textbox = dynamic_cast<TextBox*>(FindId(m_action_row.get(), m_action_row->GetId() + "::FileNameTextBox"));
+      assert(file_path_textbox);
 
 			if (m_current_path != path)
 			{
-				auto file_list = dynamic_cast<VerticalContainer*>(FindId(m_container.get(), "FileSelector::FileList"));
+				auto file_list = dynamic_cast<VerticalContainer*>(m_file_list.get());
 				file_list->Clear();
 
 				m_current_path = path;
@@ -752,7 +738,7 @@ namespace application
 					auto btnw = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::ButtonType));
 					auto btn = dynamic_cast<Button*>(btnw.get());
 					btn->SetText(item);
-					btn->SetId(item);
+					btn->SetId(file_path_textbox->GetId() + "::" + item);
 					btn->SetHeight(WidgetSize(WidgetSize::Type::Fixed, 30));
 					btn->SetWidth(WidgetSize(WidgetSize::Type::Percent, 100));
 					btn->SetColor(Color(1.0, 1.0, 1.0, 1.0));
@@ -781,27 +767,27 @@ namespace application
 			int x = (m_layout.width - child_max_width) / 2;
 			int y = 0;
 
-
-
 			LayoutConstraint constraint{
 			  .max_width = child_max_width,
 			  .max_height = child_max_height,
 			  .x = x,
 			  .y = y,
+        .reverse_horizontally = false,
+        .reverse_vertically = true,
 			};
 
-			m_container.get()->Layout(constraint, interaction_context);
-      LayoutInfo container_layout = m_container.get()->m_layout;
+      m_action_row->Layout(constraint, interaction_context);
 
-      x = container_layout.x;
-      y = container_layout.y + container_layout.height;
+      LayoutInfo action_row_layout_info = m_action_row->GetLayout();
 
-      LayoutConstraint textbox_constraint {
-        .max_width = child_max_width,
-        .max_height = child_max_height - container_layout.height,
-        .x = x,
-        .y = y
-      };
+      constraint.max_height -= action_row_layout_info.y - y;
+      constraint.x = x;
+      constraint.y = y;
+
+			m_file_list->Layout(constraint, interaction_context);
+
+      LayoutInfo filelist_row_layout;
+
 		}
 
 		Widget* FileSelector::HitTest(int x, int y)
@@ -816,11 +802,16 @@ namespace application
 				{
 					x -= m_layout.x;
 					y -= m_layout.y;
-					Widget* child_hit = m_container->HitTest(x, y);
-					return child_hit ? child_hit : this;
+					Widget* child_hit = m_file_list->HitTest(x, y);
+          if (child_hit) return child_hit;
+
+          child_hit = m_action_row->HitTest(x, y);
+          if (child_hit) return child_hit;
 				}
+
+        return this;
 			}
-			return this;
+			return NULL;
 		}
 
 		std::vector<std::string> FileSelector::ReadPath(std::string p)
@@ -847,7 +838,7 @@ namespace application
 
 			if (platform::IsFile(newpath))
 			{
-				VerticalContainer* container = dynamic_cast<VerticalContainer*>(m_container.get());
+				VerticalContainer* container = dynamic_cast<VerticalContainer*>(m_file_list.get());
 				for (auto it = container->m_children.begin();
 					it != container->m_children.end();
 					it++)
@@ -1101,7 +1092,7 @@ namespace application
 			auto file_opener = std::shared_ptr<Widget>(platform::NewWidget(WidgetType::FileSelectorType));
 			auto& fo = *dynamic_cast<FileSelector*>(file_opener.get());
 
-			fo.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 1.0));
+			fo.SetWidth(WidgetSize(WidgetSize::Type::Ratio, 0.8));
 			fo.SetHeight(WidgetSize(WidgetSize::Type::Ratio, 1.0));
 			fo.SetPath(m_application_path);
 			fo.SetId("FileSelector");
